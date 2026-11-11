@@ -2,14 +2,17 @@
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 
 import { getDatabasePool } from './connection';
+
 import * as createTasksMigration from './migrations/001_create_tasks';
+import * as createDeletedTasksMigration from './migrations/002_create_deleted_tasks';
 
 interface AppliedMigration extends RowDataPacket {
   name: string;
 }
 
 const migrations = [
-  createTasksMigration
+  createTasksMigration,
+  createDeletedTasksMigration
 ];
 
 export async function runMigrations(

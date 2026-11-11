@@ -312,6 +312,7 @@ export async function completeTask(
   return getTaskById(id);
 }
 
+
 export async function deleteTask(
   id: string
 ): Promise<boolean> {
@@ -320,11 +321,77 @@ export async function deleteTask(
   }
 
   const pool = getDatabasePool();
+  const connection = await pool.getConnection();
 
-  const [result] = await pool.execute<ResultSetHeader>(
-    'DELETE FROM tasks WHERE id = ?',
-    [id]
-  );
+  try {
+    await connection.beginTransaction();
 
-  return result.affectedRows > 0;
+    // Retrieve and lock the task before archiving it.
+    const [rows] = await connection.execute<TaskRow[]>(
+      `
+        SELECT ${SELECT_TASK_COLUMNS}
+        FROM tasks
+        WHERE id = ?
+        FOR UPDATE
+      `,
+      [id]
+    );
+
+    // Nothing to archive if the task does not exist.
+    if (rows.length === 0) {
+      await connection.rollback();
+      return false;
+    }
+
+    const task = rows[0];
+
+    // Preserve the complete task record.
+    await connection.execute(
+      `
+        INSERT INTO deleted_tasks (
+          original_task_id,
+          title,
+          description,
+          priority,
+          status,
+          due_at,
+          completed_at,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        task.id,
+        task.title,
+        task.description,
+        task.priority,
+        task.status,
+        task.due_at,
+        task.completed_at,
+        task.created_at,
+        task.updated_at
+      ]
+    );
+
+    // Remove it from the active tasks table.
+    const [result] = await connection.execute<ResultSetHeader>(
+      'DELETE FROM tasks WHERE id = ?',
+      [id]
+    );
+
+    if (result.affectedRows !== 1) {
+      throw new Error('Task could not be removed after archiving.');
+    }
+
+    await connection.commit();
+
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
+
