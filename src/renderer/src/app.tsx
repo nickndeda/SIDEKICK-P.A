@@ -1,4 +1,4 @@
-
+import PlannerPage from './pages/PlannerPage';
 import { useEffect, useState } from 'react';
 
 import Sidebar from './layout/Sidebar';
@@ -201,6 +201,8 @@ function App() {
                 </article>
               </div>
             </section>
+                    ) : activeSection === 'planner' ? (
+            <PlannerPage />
           ) : (
             <section className="section-placeholder">
               <div className="section-placeholder-content">
