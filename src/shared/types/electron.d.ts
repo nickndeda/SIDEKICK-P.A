@@ -1,6 +1,7 @@
 
 import type {
   Task,
+  DeletedTask,
   TaskPriority,
   TaskStatus,
   CreateTaskInput,
@@ -28,6 +29,13 @@ declare global {
         update(id: string, input: UpdateTaskInput): Promise<Task | null>;
         complete(id: string): Promise<Task | null>;
         delete(id: string): Promise<boolean>;
+      };
+
+      deletedTasks: {
+        list(): Promise<DeletedTask[]>;
+        restore(archiveId: string): Promise<boolean>;
+        permanentlyDelete(archiveId: string): Promise<boolean>;
+        empty(): Promise<number>;
       };
     };
   }

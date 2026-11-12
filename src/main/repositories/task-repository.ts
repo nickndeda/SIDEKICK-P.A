@@ -55,6 +55,24 @@ interface TaskRow extends RowDataPacket {
   updated_at: Date;
 }
 
+interface DeletedTaskRow extends RowDataPacket {
+  archive_id: string | number;
+  original_task_id: string | number;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_at: Date | null;
+  completed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+  deleted_at: Date;
+}
+
+interface TaskIdRow extends RowDataPacket {
+  id: string | number;
+}
+
 function mapTask(row: TaskRow): Task {
   return {
     id: String(row.id),
@@ -66,6 +84,22 @@ function mapTask(row: TaskRow): Task {
     completedAt: row.completed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at
+  };
+}
+
+function mapDeletedTask(row: DeletedTaskRow): DeletedTask {
+  return {
+    archiveId: String(row.archive_id),
+    originalTaskId: String(row.original_task_id),
+    title: row.title,
+    description: row.description,
+    priority: row.priority,
+    status: row.status,
+    dueAt: row.due_at,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at
   };
 }
 
@@ -394,4 +428,182 @@ export async function deleteTask(
     connection.release();
   }
 }
+export interface DeletedTask {
+  archiveId: string;
+  originalTaskId: string;
+  title: string;
+  description: string | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  dueAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date;
+}
 
+/**
+ * Retrieve all archived tasks, newest deletion first.
+ */
+export async function getDeletedTasks(): Promise<DeletedTask[]> {
+  const pool = getDatabasePool();
+
+  const [rows] = await pool.execute<DeletedTaskRow[]>(`
+    SELECT
+      archive_id,
+      original_task_id,
+      title,
+      description,
+      priority,
+      status,
+      due_at,
+      completed_at,
+      created_at,
+      updated_at,
+      deleted_at
+    FROM deleted_tasks
+    ORDER BY deleted_at DESC, archive_id DESC
+  `);
+
+  return rows.map(mapDeletedTask);
+}
+
+/**
+ * Restore an archived task while preserving its original ID and data.
+ */
+export async function restoreDeletedTask(
+  archiveId: string
+): Promise<boolean> {
+  if (!/^\d+$/.test(archiveId)) {
+    throw new Error('Invalid archived task ID.');
+  }
+
+  const pool = getDatabasePool();
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute<DeletedTaskRow[]>(
+      `
+        SELECT
+          archive_id,
+          original_task_id,
+          title,
+          description,
+          priority,
+          status,
+          due_at,
+          completed_at,
+          created_at,
+          updated_at,
+          deleted_at
+        FROM deleted_tasks
+        WHERE archive_id = ?
+        FOR UPDATE
+      `,
+      [archiveId]
+    );
+
+    if (rows.length === 0) {
+      await connection.rollback();
+      return false;
+    }
+
+    const archivedTask = rows[0];
+    const originalTaskId = String(archivedTask.original_task_id);
+
+    // Do not overwrite an existing active task.
+    const [existingTasks] = await connection.execute<TaskIdRow[]>(
+      'SELECT id FROM tasks WHERE id = ? FOR UPDATE',
+      [originalTaskId]
+    );
+
+    if (existingTasks.length > 0) {
+      throw new Error(
+        'Cannot restore this task because its original ID is already in use.'
+      );
+    }
+
+    // Restore the original task record.
+    await connection.execute(
+      `
+        INSERT INTO tasks (
+          id,
+          title,
+          description,
+          priority,
+          status,
+          due_at,
+          completed_at,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        originalTaskId,
+        archivedTask.title,
+        archivedTask.description,
+        archivedTask.priority,
+        archivedTask.status,
+        archivedTask.due_at,
+        archivedTask.completed_at,
+        archivedTask.created_at,
+        archivedTask.updated_at
+      ]
+    );
+
+    // Remove the archived copy only after successful restoration.
+    const [result] = await connection.execute<ResultSetHeader>(
+      'DELETE FROM deleted_tasks WHERE archive_id = ?',
+      [archiveId]
+    );
+
+    if (result.affectedRows !== 1) {
+      throw new Error('The archived task could not be removed after restoration.');
+    }
+
+    await connection.commit();
+    return true;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+/**
+ * Permanently delete one archived task.
+ */
+export async function permanentlyDeleteTask(
+  archiveId: string
+): Promise<boolean> {
+  if (!/^\d+$/.test(archiveId)) {
+    throw new Error('Invalid archived task ID.');
+  }
+
+  const pool = getDatabasePool();
+
+  const [result] = await pool.execute<ResultSetHeader>(
+    'DELETE FROM deleted_tasks WHERE archive_id = ?',
+    [archiveId]
+  );
+
+  return result.affectedRows === 1;
+}
+
+/**
+ * Permanently remove every task from the Trash.
+ * Returns the number of archived records removed.
+ */
+export async function emptyDeletedTasks(): Promise<number> {
+  const pool = getDatabasePool();
+
+  const [result] = await pool.execute<ResultSetHeader>(
+    'DELETE FROM deleted_tasks'
+  );
+
+  return result.affectedRows;
+}

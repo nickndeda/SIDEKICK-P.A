@@ -1,5 +1,9 @@
 
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import {
+  BrowserWindow,
+  ipcMain,
+  type IpcMainInvokeEvent
+} from 'electron';
 
 import {
   createTask,
@@ -8,6 +12,10 @@ import {
   updateTask,
   completeTask,
   deleteTask,
+  getDeletedTasks,
+  restoreDeletedTask,
+  permanentlyDeleteTask,
+  emptyDeletedTasks,
   type TaskPriority,
   type TaskStatus,
   type CreateTaskInput,
@@ -41,6 +49,14 @@ function requireObject(value: unknown): Record<string, unknown> {
 function requireTaskId(value: unknown): string {
   if (typeof value !== 'string' || !/^\d+$/.test(value)) {
     throw new Error('Invalid task ID.');
+  }
+
+  return value;
+}
+
+function requireArchiveId(value: unknown): string {
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    throw new Error('Invalid archived task ID.');
   }
 
   return value;
@@ -203,15 +219,25 @@ function parseFilters(value: unknown): TaskFilters {
 }
 
 /**
- * Register the approved task-related IPC operations.
+ * Register the approved task and Trash IPC operations.
  */
 export function registerIpcHandlers(): void {
-  ipcMain.removeHandler('tasks:create');
-  ipcMain.removeHandler('tasks:list');
-  ipcMain.removeHandler('tasks:get');
-  ipcMain.removeHandler('tasks:update');
-  ipcMain.removeHandler('tasks:complete');
-  ipcMain.removeHandler('tasks:delete');
+  const channels = [
+    'tasks:create',
+    'tasks:list',
+    'tasks:get',
+    'tasks:update',
+    'tasks:complete',
+    'tasks:delete',
+    'deleted-tasks:list',
+    'deleted-tasks:restore',
+    'deleted-tasks:delete',
+    'deleted-tasks:empty'
+  ];
+
+  for (const channel of channels) {
+    ipcMain.removeHandler(channel);
+  }
 
   ipcMain.handle('tasks:create', async (event, payload: unknown) => {
     assertTrustedSender(event);
@@ -253,5 +279,39 @@ export function registerIpcHandlers(): void {
     assertTrustedSender(event);
 
     return deleteTask(requireTaskId(id));
+  });
+
+  // Trash: retrieve archived tasks.
+  ipcMain.handle('deleted-tasks:list', async (event) => {
+    assertTrustedSender(event);
+
+    return getDeletedTasks();
+  });
+
+  // Trash: restore an archived task.
+  ipcMain.handle(
+    'deleted-tasks:restore',
+    async (event, archiveId: unknown) => {
+      assertTrustedSender(event);
+
+      return restoreDeletedTask(requireArchiveId(archiveId));
+    }
+  );
+
+  // Trash: permanently delete one archived task.
+  ipcMain.handle(
+    'deleted-tasks:delete',
+    async (event, archiveId: unknown) => {
+      assertTrustedSender(event);
+
+      return permanentlyDeleteTask(requireArchiveId(archiveId));
+    }
+  );
+
+  // Trash: permanently delete all archived tasks.
+  ipcMain.handle('deleted-tasks:empty', async (event) => {
+    assertTrustedSender(event);
+
+    return emptyDeletedTasks();
   });
 }

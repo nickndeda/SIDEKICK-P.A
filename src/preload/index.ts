@@ -43,6 +43,20 @@ const sidekickAPI = {
 
     delete: (id: string) =>
       ipcRenderer.invoke('tasks:delete', id)
+  },
+
+  deletedTasks: {
+    list: () =>
+      ipcRenderer.invoke('deleted-tasks:list'),
+
+    restore: (archiveId: string) =>
+      ipcRenderer.invoke('deleted-tasks:restore', archiveId),
+
+    permanentlyDelete: (archiveId: string) =>
+      ipcRenderer.invoke('deleted-tasks:delete', archiveId),
+
+    empty: () =>
+      ipcRenderer.invoke('deleted-tasks:empty')
   }
 };
 
