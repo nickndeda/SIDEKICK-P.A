@@ -7,6 +7,7 @@ import {
   faCalendarDays,
   faBell,
   faComments,
+  faRobot,
   faGear
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -20,6 +21,12 @@ export interface NavigationItem {
 }
 
 export const navigationItems: NavigationItem[] = [
+  {
+    id: 'assistant',
+    label: 'Assistant',
+    icon: faRobot,
+    description: 'Background monitoring and assistant activity'
+  },
   {
     id: 'overview',
     label: 'Overview',

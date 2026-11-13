@@ -16,6 +16,7 @@ import {
   completeSession,
   cancelSession
 } from '../modules/productivity/productivity-service';
+import { publishAssistantEvent } from '../core/assistant-monitor';
 
 import type {
   StartProductivitySessionInput
@@ -91,7 +92,10 @@ export function registerProductivityIpcHandlers(): void {
 
   ipcMain.handle('productivity:start', (event, input: unknown) => {
     assertTrustedSender(event);
-    return startSession(requireStartInput(input));
+    return startSession(requireStartInput(input)).then(session => {
+      publishAssistantEvent('productivity.session.started', { sessionId: session.id, title: session.title });
+      return session;
+    });
   });
 
   ipcMain.handle('productivity:active', (event) => {
@@ -116,17 +120,26 @@ export function registerProductivityIpcHandlers(): void {
 
   ipcMain.handle('productivity:pause', (event, id: unknown) => {
     assertTrustedSender(event);
-    return pauseSession(requireSessionId(id));
+    return pauseSession(requireSessionId(id)).then(session => {
+      publishAssistantEvent('productivity.session.paused', { sessionId: session.id, title: session.title });
+      return session;
+    });
   });
 
   ipcMain.handle('productivity:resume', (event, id: unknown) => {
     assertTrustedSender(event);
-    return resumeSession(requireSessionId(id));
+    return resumeSession(requireSessionId(id)).then(session => {
+      publishAssistantEvent('productivity.session.resumed', { sessionId: session.id, title: session.title });
+      return session;
+    });
   });
 
   ipcMain.handle('productivity:complete', (event, id: unknown) => {
     assertTrustedSender(event);
-    return completeSession(requireSessionId(id));
+    return completeSession(requireSessionId(id)).then(session => {
+      publishAssistantEvent('productivity.session.completed', { sessionId: session.id, title: session.title });
+      return session;
+    });
   });
 
   ipcMain.handle('productivity:cancel', (event, id: unknown) => {

@@ -13,6 +13,10 @@ type Task = Awaited<ReturnType<typeof window.sidekick.tasks.list>>[number];
 type Session = Awaited<ReturnType<typeof window.sidekick.productivity.today>>[number];
 type Summary = Awaited<ReturnType<typeof window.sidekick.productivity.summary>>;
 type WellnessSummary = Awaited<ReturnType<typeof window.sidekick.wellness.summary>>;
+type FinanceSummary = Awaited<ReturnType<typeof window.sidekick.finance.summary>>;
+type LearningOverview = Awaited<ReturnType<typeof window.sidekick.learning.analytics.overview>>;
+type AssistantStatus = Awaited<ReturnType<typeof window.sidekick.assistant.status>>;
+type AssistantActivity = Awaited<ReturnType<typeof window.sidekick.assistant.activities>>[number];
 
 interface OverviewData {
   tasks: Task[];
@@ -20,6 +24,10 @@ interface OverviewData {
   activeSession: Awaited<ReturnType<typeof window.sidekick.productivity.active>>;
   summary: Summary;
   wellnessSummary: WellnessSummary | null;
+  financeSummary: FinanceSummary | null;
+  learningSummary: LearningOverview | null;
+  assistantStatus: AssistantStatus | null;
+  assistantActivities: AssistantActivity[] | null;
 }
 
 function localDateKey(value: Date | string): string {
@@ -89,11 +97,17 @@ function OverviewPage({ onNavigate }: OverviewPageProps) {
         window.sidekick.productivity.summary()
       ]);
       const wellnessData = window.sidekick.wellness.summary().catch(() => null);
-      const [[tasks, todaySessions, activeSession, summary], wellnessSummary] = await Promise.all([
+      const financeData = window.sidekick.finance.summary().catch(() => null);
+      const learningData = window.sidekick.learning.analytics.overview().catch(() => null);
+      const assistantData = Promise.all([window.sidekick.assistant.status(), window.sidekick.assistant.activities(3)]).catch(() => null);
+      const [[tasks, todaySessions, activeSession, summary], wellnessSummary, financeSummary, learningSummary, assistantSnapshot] = await Promise.all([
         coreData,
-        wellnessData
+        wellnessData,
+        financeData,
+        learningData,
+        assistantData
       ]);
-      setData({ tasks, todaySessions, activeSession, summary, wellnessSummary });
+      setData({ tasks, todaySessions, activeSession, summary, wellnessSummary, financeSummary, learningSummary, assistantStatus: assistantSnapshot?.[0] ?? null, assistantActivities: assistantSnapshot?.[1] ?? null });
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -136,6 +150,9 @@ function OverviewPage({ onNavigate }: OverviewPageProps) {
       upcoming
     };
   }, [data?.tasks]);
+
+  const financeMoney = (amountMinor: number, currencyCode: string) =>
+    new Intl.NumberFormat('en-KE', { style: 'currency', currency: currencyCode }).format(amountMinor / 100);
 
   return (
     <section className="overview-page">
@@ -294,6 +311,103 @@ function OverviewPage({ onNavigate }: OverviewPageProps) {
               {data.wellnessSummary.upcomingReminders[0]
                 ? `Next: ${data.wellnessSummary.upcomingReminders[0].title} · ${formatTime(data.wellnessSummary.upcomingReminders[0].snoozedUntil ?? data.wellnessSummary.upcomingReminders[0].scheduledAt)}`
                 : 'No upcoming wellness reminders.'}
+            </p>
+          </>
+        )}
+      </article>
+
+      <article className="overview-wellness-summary">
+        <div className="overview-wellness-heading">
+          <div>
+            <span className="overview-eyebrow">LEARNING</span>
+            <h3>Learning progress</h3>
+            <p>Study time, revision queue and recent learning activity.</p>
+          </div>
+          <button type="button" onClick={() => onNavigate('learning')}>Open Learning</button>
+        </div>
+        {!data?.learningSummary ? (
+          <p className="overview-wellness-unavailable">Learning summary is unavailable right now.</p>
+        ) : (
+          <>
+            <div className="overview-wellness-stats">
+              <span><strong>{data.learningSummary.activeSubjects}</strong> active subjects</span>
+              <span><strong>{data.learningSummary.completedTopics} / {data.learningSummary.totalTopics}</strong> topics completed</span>
+              <span><strong>{formatElapsed(data.learningSummary.studyTodaySeconds)}</strong> studied today</span>
+              <span><strong>{data.learningSummary.revisionsDueToday}</strong> revisions due today</span>
+              <span><strong>{data.learningSummary.overdueRevisions}</strong> overdue revisions</span>
+              <span><strong>{data.learningSummary.weakTopics.length}</strong> topics needing attention</span>
+              <span><strong>{data.learningSummary.averageQuizPercent === null ? '—' : `${Math.round(data.learningSummary.averageQuizPercent)}%`}</strong> average quiz score</span>
+            </div>
+            <p className="overview-wellness-next">
+              {data.learningSummary.currentSession
+                ? `Current: ${data.learningSummary.currentSession.title} · ${data.learningSummary.currentSession.status}`
+                : data.learningSummary.upcomingRevisions[0]
+                  ? `Next revision: ${data.learningSummary.upcomingRevisions[0].topicTitle} · ${formatTime(data.learningSummary.upcomingRevisions[0].dueAt)}`
+                  : 'No active study session or scheduled revisions.'}
+            </p>
+          </>
+        )}
+      </article>
+
+      <article className="overview-wellness-summary">
+        <div className="overview-wellness-heading">
+          <div>
+            <span className="overview-eyebrow">SIDEKICK ASSISTANT</span>
+            <h3>Background activity</h3>
+            <p>Context-aware findings captured while Sidekick is running.</p>
+          </div>
+          <button type="button" onClick={() => onNavigate('assistant')}>Open Assistant</button>
+        </div>
+        {!data?.assistantStatus || !data.assistantActivities ? (
+          <p className="overview-wellness-unavailable">Assistant activity is unavailable right now.</p>
+        ) : (
+          <>
+            <div className="overview-wellness-stats">
+              <span><strong>{data.assistantStatus.state.replaceAll('_', ' ')}</strong> runtime status</span>
+              <span><strong>{data.assistantStatus.monitoringEnabled ? 'On' : 'Off'}</strong> monitoring</span>
+              <span><strong>{data.assistantStatus.unreadCount}</strong> unread findings</span>
+              <span><strong>{data.assistantStatus.degradedModules.length}</strong> unavailable context sources</span>
+            </div>
+            {data.assistantActivities.slice(0, 2).map(activity => <p className="overview-wellness-next" key={activity.id}><strong>{activity.title}:</strong> {activity.description}</p>)}
+            {!data.assistantActivities.length && <p className="overview-wellness-next">No assistant findings have been recorded.</p>}
+          </>
+        )}
+      </article>
+
+      <article className="overview-finance-summary">
+        <div className="overview-wellness-heading">
+          <div>
+            <span className="overview-eyebrow">FINANCE</span>
+            <h3>Monthly money overview</h3>
+            <p>Income, expenses, budgets and upcoming recurring bills.</p>
+          </div>
+          <button type="button" onClick={() => onNavigate('finance')}>Open Finance</button>
+        </div>
+        {!data?.financeSummary ? (
+          <p className="overview-wellness-unavailable">Finance summary is unavailable right now.</p>
+        ) : (
+          <>
+            <div className="overview-finance-stats">
+              <span><small>Income</small><strong>{financeMoney(data.financeSummary.monthIncomeMinor, data.financeSummary.currencyCode)}</strong></span>
+              <span><small>Expenses</small><strong>{financeMoney(data.financeSummary.monthExpenseMinor, data.financeSummary.currencyCode)}</strong></span>
+              <span><small>Net</small><strong>{financeMoney(data.financeSummary.monthNetMinor, data.financeSummary.currencyCode)}</strong></span>
+              <span><small>Budget used</small><strong>{financeMoney(data.financeSummary.budgetSpentMinor, data.financeSummary.currencyCode)} / {financeMoney(data.financeSummary.budgetedMinor, data.financeSummary.currencyCode)}</strong></span>
+            </div>
+            {data.financeSummary.goals.filter(goal => goal.status === 'active').length > 0 && (
+              <div className="overview-finance-goals">
+                {data.financeSummary.goals.filter(goal => goal.status === 'active').slice(0, 3).map(goal => (
+                  <div key={goal.id}>
+                    <span><strong>{goal.name}</strong><small>{financeMoney(goal.savedMinor, data.financeSummary!.currencyCode)} / {financeMoney(goal.targetMinor, data.financeSummary!.currencyCode)}</small></span>
+                    <i><b style={{ width: `${Math.min(100, Math.round(goal.savedMinor / Math.max(1, goal.targetMinor) * 100))}%` }} /></i>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="overview-wellness-next">
+              {data.financeSummary.upcomingBills[0]
+                ? `Next bill: ${data.financeSummary.upcomingBills[0].name} · ${financeMoney(data.financeSummary.upcomingBills[0].amountMinor, data.financeSummary.currencyCode)} · due ${data.financeSummary.upcomingBills[0].nextDueDate}`
+                : 'No active recurring bills.'}
+              {' · '}{data.financeSummary.goals.filter(goal => goal.status === 'active').length} active savings goals
             </p>
           </>
         )}

@@ -11,8 +11,14 @@ import { runMigrations } from './database/migrate';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerProductivityIpcHandlers } from './ipc/productivity-handlers';
 import { registerWellnessIpcHandlers } from './ipc/wellness-handlers';
+import { registerFinanceIpcHandlers } from './ipc/finance-handlers';
+import { registerLearningIpcHandlers } from './ipc/learning-handlers';
+import { registerAssistantIpcHandlers } from './ipc/assistant-handlers';
 import { startScheduler, stopScheduler } from './core/scheduler';
 import { runWellnessReminderCycle } from './modules/wellness/wellness-service';
+import { runFinanceReminderCycle } from './modules/finance/finance-service';
+import { runLearningReminderCycle } from './modules/learning/learning-service';
+import { runAssistantMonitorCycle, startAssistantEngine, stopAssistantEngine, subscribeAssistantUpdates } from './core/assistant-engine';
 import { createTray, destroyTray } from './tray-manager';
 
 let isQuitting = false;
@@ -81,12 +87,36 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   registerProductivityIpcHandlers();
   registerWellnessIpcHandlers();
+  registerFinanceIpcHandlers();
+  registerLearningIpcHandlers();
+  registerAssistantIpcHandlers();
 
   console.log('Sidekick IPC handlers registered.');
 
   createWindow();
 
-  if (databaseReady) startScheduler(runWellnessReminderCycle);
+  subscribeAssistantUpdates(update => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) window.webContents.send('assistant:update', update);
+    }
+  });
+
+  await startAssistantEngine(databaseReady);
+
+  if (databaseReady) startScheduler(async () => {
+    try {
+      await runFinanceReminderCycle();
+    } catch (error) {
+      console.error('Finance reminder cycle failed:', error);
+    }
+    try {
+      await runLearningReminderCycle();
+    } catch (error) {
+      console.error('Learning reminder cycle failed:', error);
+    }
+    await runAssistantMonitorCycle();
+    await runWellnessReminderCycle();
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -107,6 +137,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   isQuitting = true;
   stopScheduler();
+  void stopAssistantEngine();
   destroyTray();
 
   void closeDatabaseConnection()

@@ -21,14 +21,14 @@ async function runTick(): Promise<void> {
   try {
     await scheduledWork();
   } catch (error) {
-    console.error('Wellness reminder scheduler failed:', error);
+    console.error('Background scheduler failed:', error);
   } finally {
     running = false;
     queueNextTick();
   }
 }
 
-/** Starts the single main-process timer used for recurring wellness reminders. */
+/** Starts the single main-process timer shared by reminders and assistant monitoring. */
 export function startScheduler(work: ScheduledWork): void {
   scheduledWork = work;
   void runTick();

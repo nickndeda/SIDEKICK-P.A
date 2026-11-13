@@ -267,6 +267,34 @@
   background: var(--color-surface);
 }
 
+.overview-finance-summary {
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  background: var(--color-surface);
+}
+
+.overview-finance-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0 12px;
+}
+
+.overview-finance-stats span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.overview-finance-stats small { color: var(--color-text-secondary); font-size: 12px; }
+.overview-finance-stats strong { overflow-wrap: anywhere; }
+.overview-finance-goals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 10px 0 14px; }
+.overview-finance-goals span { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.overview-finance-goals small { color: var(--color-text-secondary); white-space: nowrap; }
+.overview-finance-goals i { display: block; height: 6px; margin-top: 7px; overflow: hidden; border-radius: 8px; background: var(--color-elevated); }
+.overview-finance-goals b { display: block; height: 100%; border-radius: inherit; background: var(--color-accent); }
+
+@media (max-width: 760px) {
+  .overview-finance-stats, .overview-finance-goals { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .overview-wellness-heading,
 .overview-wellness-progress-label {
   display: flex;

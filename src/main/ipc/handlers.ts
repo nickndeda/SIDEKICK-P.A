@@ -22,6 +22,7 @@ import {
   type UpdateTaskInput,
   type TaskFilters
 } from '../repositories/task-repository';
+import { publishAssistantEvent } from '../core/assistant-monitor';
 
 /**
  * Ensure requests originate from the main frame of an application window.
@@ -241,8 +242,9 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('tasks:create', async (event, payload: unknown) => {
     assertTrustedSender(event);
-
-    return createTask(parseCreateInput(payload));
+    const task = await createTask(parseCreateInput(payload));
+    publishAssistantEvent('task.created', { taskId: task.id, title: task.title });
+    return task;
   });
 
   ipcMain.handle('tasks:list', async (event, filters: unknown) => {
@@ -262,23 +264,29 @@ export function registerIpcHandlers(): void {
     async (event, id: unknown, payload: unknown) => {
       assertTrustedSender(event);
 
-      return updateTask(
+      const task = await updateTask(
         requireTaskId(id),
         parseUpdateInput(payload)
       );
+      if (task) publishAssistantEvent('task.updated', { taskId: task.id });
+      return task;
     }
   );
 
   ipcMain.handle('tasks:complete', async (event, id: unknown) => {
     assertTrustedSender(event);
 
-    return completeTask(requireTaskId(id));
+    const task = await completeTask(requireTaskId(id));
+    if (task) publishAssistantEvent('task.completed', { taskId: task.id });
+    return task;
   });
 
   ipcMain.handle('tasks:delete', async (event, id: unknown) => {
     assertTrustedSender(event);
-
-    return deleteTask(requireTaskId(id));
+    const taskId = requireTaskId(id);
+    const deleted = await deleteTask(taskId);
+    if (deleted) publishAssistantEvent('task.deleted', { taskId });
+    return deleted;
   });
 
   // Trash: retrieve archived tasks.

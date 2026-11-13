@@ -25,6 +25,18 @@ type SidekickWellnessCategory =
   | 'bedtime'
   | 'wake_up';
 
+type SidekickFinanceTransactionType = 'income' | 'expense' | 'transfer';
+type SidekickFinanceCategoryType = 'income' | 'expense';
+interface SidekickFinanceCategory { id: string; name: string; categoryType: SidekickFinanceCategoryType; isDefault: boolean; isActive: boolean }
+interface SidekickFinanceTransaction { id: string; transactionType: SidekickFinanceTransactionType; amountMinor: number; currencyCode: string; categoryId: string | null; categoryName: string | null; description: string; merchant: string | null; paymentMethod: string | null; transactionDate: string; createdAt: Date }
+interface SidekickFinanceBudget { id: string; name: string; amountMinor: number; spentMinor: number; currencyCode: string; categoryId: string | null; categoryName: string | null; periodYear: number; periodMonth: number }
+interface SidekickFinanceBill { id: string; name: string; amountMinor: number; currencyCode: string; categoryId: string; categoryName: string; frequency: 'weekly'|'monthly'|'bimonthly'|'quarterly'|'annually'|'custom'; intervalDays: number | null; recurrenceDay:number; startDate: string|null; nextDueDate: string; endDate: string|null; reminderDaysBefore: number; status: 'active'|'paused'|'archived'; notes: string | null }
+interface SidekickFinanceBillPayment { id:string; billId:string; transactionId:string; amountMinor:number; currencyCode:string; dueDate:string; paymentDate:string; notes:string|null }
+interface SidekickFinanceGoal { id: string; name: string; description:string|null; targetMinor: number; savedMinor: number; currencyCode: string; targetDate: string | null; status: 'active'|'paused'|'completed'|'archived' }
+interface SidekickFinanceContribution {id:string;goalId:string;amountMinor:number;contributionDate:string;description:string|null}
+interface SidekickFinanceSettings { currencyCode: string }
+interface SidekickFinanceSummary { currencyCode: string; monthIncomeMinor: number; monthExpenseMinor: number; monthNetMinor: number; monthSavingsContributionsMinor: number; budgetedMinor: number; budgetSpentMinor: number; upcomingBills: SidekickFinanceBill[]; goals: SidekickFinanceGoal[] }
+
 interface SidekickIntervalWellnessSettings {
   enabled: boolean;
   intervalMinutes: number;
@@ -76,7 +88,7 @@ interface SidekickSleepRecord {
 
 interface SidekickWellnessReminder {
   id: string;
-  category: SidekickWellnessCategory;
+  category: SidekickWellnessCategory | 'finance_bill' | 'learning_revision';
   title: string;
   description: string;
   priority: 'low' | 'normal' | 'high';
@@ -241,6 +253,42 @@ declare global {
         snoozeReminder(id: string): Promise<SidekickWellnessReminder>;
         dismissReminder(id: string): Promise<SidekickWellnessReminder>;
       };
+
+      finance: {
+        settings(): Promise<SidekickFinanceSettings>;
+        setCurrency(code: string): Promise<SidekickFinanceSettings>;
+        categories(): Promise<SidekickFinanceCategory[]>;
+        addCategory(name: string, type: SidekickFinanceCategoryType): Promise<SidekickFinanceCategory>;
+        updateCategory(id:string,name:string):Promise<void>;
+        deactivateCategory(id: string): Promise<void>;
+        transactions(from: string, to: string): Promise<SidekickFinanceTransaction[]>;
+        addTransaction(input: { transactionType: SidekickFinanceTransactionType; amountMinor: number; categoryId?: string | null; description: string; transactionDate?: string;merchant?:string|null;paymentMethod?:string|null }): Promise<SidekickFinanceTransaction>;
+        updateTransaction(id: string, input: { transactionType: SidekickFinanceTransactionType; amountMinor: number; categoryId?: string | null; description: string; transactionDate?: string;merchant?:string|null;paymentMethod?:string|null }): Promise<void>;
+        deleteTransaction(id: string): Promise<boolean>;
+        budgets(year: number, month: number): Promise<SidekickFinanceBudget[]>;
+        addBudget(input: { name: string; amountMinor: number; categoryId?: string | null; periodYear: number; periodMonth: number }): Promise<void>;
+        updateBudget(id:string,input:{name:string;amountMinor:number;categoryId?:string|null;periodYear:number;periodMonth:number}):Promise<void>;
+        deleteBudget(id: string): Promise<void>;
+        bills(): Promise<SidekickFinanceBill[]>;
+        billPayments(id:string):Promise<SidekickFinanceBillPayment[]>;
+        addBill(input: { name: string; amountMinor: number; categoryId: string; frequency: SidekickFinanceBill['frequency']; intervalDays?: number | null;startDate?:string|null; nextDueDate: string;endDate?:string|null; reminderDaysBefore: number; notes?: string | null }): Promise<SidekickFinanceBill>;
+        setBillStatus(id: string, status: SidekickFinanceBill['status']): Promise<void>;
+        payBill(id: string, amountMinor?:number,paymentDate?: string,notes?:string): Promise<void>;
+        snoozeBillReminder(id: string): Promise<void>;
+        dismissBillReminder(id: string): Promise<void>;
+        goals(): Promise<SidekickFinanceGoal[]>;
+        addGoal(input: { name: string;description?:string|null; targetMinor: number; targetDate?: string | null }): Promise<void>;
+        updateGoal(id:string,input:{name:string;description?:string|null;targetMinor:number;targetDate?:string|null}):Promise<void>;
+        contribute(id: string, amountMinor: number, date?: string, description?: string): Promise<void>;
+        contributions(id:string):Promise<SidekickFinanceContribution[]>;
+        updateContribution(id:string,amountMinor:number,date:string,description?:string):Promise<void>;
+        deleteContribution(id:string):Promise<boolean>;
+        setGoalStatus(id: string, status: SidekickFinanceGoal['status']): Promise<void>;
+        summary(year?:number,month?:number): Promise<SidekickFinanceSummary>;
+      };
+
+      learning: import('./learning').LearningApi;
+      assistant: import('./assistant').AssistantApi;
     };
   }
 }

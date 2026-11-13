@@ -13,13 +13,15 @@ interface SidebarProps {
   collapsed: boolean;
   onNavigate: (section: string) => void;
   onToggle: () => void;
+  notificationCount: number;
 }
 
 function Sidebar({
   activeSection,
   collapsed,
   onNavigate,
-  onToggle
+  onToggle,
+  notificationCount
 }: SidebarProps) {
   return (
     <aside
@@ -67,8 +69,8 @@ function Sidebar({
                 </span>
               )}
 
-              {item.id === 'notifications' && !collapsed && (
-                <span className="sidebar__notification-dot" />
+              {item.id === 'notifications' && !collapsed && notificationCount > 0 && (
+                <span className="sidebar__notification-dot" aria-label={`${notificationCount} unread assistant findings`} />
               )}
             </button>
           );

@@ -43,7 +43,7 @@ interface SleepRow extends RowDataPacket {
 
 interface ReminderRow extends RowDataPacket {
   id: string;
-  category: WellnessCategory;
+  category: WellnessCategory | 'finance_bill';
   title: string;
   description: string;
   priority: 'low' | 'normal' | 'high';
@@ -339,8 +339,9 @@ export async function getDueReminders(pool: Pool = getDatabasePool()): Promise<W
   const [rows] = await pool.execute<ReminderRow[]>(
     `SELECT id, category, title, description, priority, scheduled_at, status, snoozed_until, completed_at, dismissed_at
      FROM wellness_reminders
-     WHERE (status = 'scheduled' AND scheduled_at <= NOW(3))
+     WHERE category <> 'finance_bill' AND ((status = 'scheduled' AND scheduled_at <= NOW(3))
         OR (status = 'snoozed' AND snoozed_until <= NOW(3))
+     )
      ORDER BY COALESCE(snoozed_until, scheduled_at) ASC`
   );
   return rows.map(mapReminder);
@@ -357,7 +358,7 @@ export async function getPendingReminders(limit = 10, pool: Pool = getDatabasePo
   const safeLimit = Math.max(1, Math.min(50, Math.floor(limit)));
   const [rows] = await pool.execute<ReminderRow[]>(
     `SELECT id, category, title, description, priority, scheduled_at, status, snoozed_until, completed_at, dismissed_at
-     FROM wellness_reminders WHERE status IN ('scheduled', 'notified', 'snoozed')
+     FROM wellness_reminders WHERE category <> 'finance_bill' AND status IN ('scheduled', 'notified', 'snoozed')
      ORDER BY COALESCE(snoozed_until, scheduled_at) ASC LIMIT ?`, [safeLimit]
   );
   return rows.map(mapReminder);
@@ -388,6 +389,10 @@ export async function completeWellnessReminder(
        FROM wellness_reminders WHERE id = ? FOR UPDATE`, [id]
     );
     const reminder = reminderRows[0];
+    if (reminder?.category === 'finance_bill') {
+      await connection.rollback();
+      throw new Error('Bill reminders must be completed by recording the bill payment in Finance.');
+    }
     if (!reminder || !['notified', 'scheduled', 'snoozed'].includes(reminder.status)) {
       await connection.rollback();
       return null;

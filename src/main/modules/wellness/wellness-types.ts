@@ -73,7 +73,7 @@ export interface SleepRecord {
 
 export interface WellnessReminder {
   id: string;
-  category: WellnessCategory;
+  category: WellnessCategory | 'finance_bill' | 'learning_revision';
   title: string;
   description: string;
   priority: 'low' | 'normal' | 'high';

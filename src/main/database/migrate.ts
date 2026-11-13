@@ -8,6 +8,13 @@ import * as createDeletedTasksMigration from './migrations/002_create_deleted_ta
 import * as createProductivityMigration from './migrations/003_create_productivity_tables';
 import * as linkProductivitySessionsToTasks from './migrations/004_link_productivity_sessions_to_tasks';
 import * as createWellnessTables from './migrations/005_create_wellness_tables';
+import * as createFinanceTables from './migrations/006_create_finance_tables';
+import * as expandFinanceManagement from './migrations/007_expand_finance_management';
+import * as anchorBillRecurrence from './migrations/008_anchor_bill_recurrence';
+import * as createLearningTables from './migrations/009_create_learning_tables';
+import * as createAssistantActivity from './migrations/010_create_assistant_activity';
+import * as assistantConversations from './migrations/011_assistant_conversations';
+import * as orderAssistantMessages from './migrations/012_order_assistant_messages';
 
 interface AppliedMigration extends RowDataPacket {
   name: string;
@@ -18,7 +25,14 @@ const migrations = [
   createDeletedTasksMigration,
   createProductivityMigration,
   linkProductivitySessionsToTasks,
-  createWellnessTables
+  createWellnessTables,
+  createFinanceTables,
+  expandFinanceManagement,
+  anchorBillRecurrence,
+  createLearningTables,
+  createAssistantActivity,
+  assistantConversations,
+  orderAssistantMessages
 ];
 
 export async function runMigrations(

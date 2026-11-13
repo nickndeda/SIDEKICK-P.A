@@ -8,6 +8,7 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import AppIcon from '../components/AppIcon';
+import type { AssistantStateName } from '../../../shared/types/assistant';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -20,6 +21,8 @@ interface TopbarProps {
   onFocusToggle: () => void;
   onThemeChange: (theme: ThemeMode) => void;
   onNotificationsClick: () => void;
+  assistantState: AssistantStateName;
+  onAssistantClick: () => void;
 }
 
 function Topbar({
@@ -30,7 +33,9 @@ function Topbar({
   theme,
   onFocusToggle,
   onThemeChange,
-  onNotificationsClick
+  onNotificationsClick,
+  assistantState,
+  onAssistantClick
 }: TopbarProps) {
   return (
     <header className="topbar">
@@ -40,6 +45,10 @@ function Topbar({
       </div>
 
       <div className="topbar__actions">
+        <button type="button" className={`topbar__assistant topbar__assistant--${assistantState}`} onClick={onAssistantClick} title="Open assistant activity">
+          <span className="topbar__assistant-indicator" />
+          <span>Sidekick {assistantState.replaceAll('_', ' ')}</span>
+        </button>
         <label className="topbar__search">
           <AppIcon icon={faSearch} />
           <input

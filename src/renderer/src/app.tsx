@@ -2,11 +2,15 @@ import PlannerPage from './pages/PlannerPage';
 import OverviewPage from './pages/OverviewPage';
 import ProductivityPage from './pages/ProductivityPage';
 import WellnessPage from './pages/WellnessPage';
+import FinancePage from './pages/FinancePage';
+import LearningPage from './pages/LearningPage';
+import AssistantPage from './pages/AssistantPage';
 import { useEffect, useState } from 'react';
 
 import Sidebar from './layout/Sidebar';
 import Topbar, { type ThemeMode } from './layout/Topbar';
 import { navigationItems } from './layout/navigation';
+import type { AssistantStatus } from '../../shared/types/assistant';
 
 function App() {
   const [activeSection, setActiveSection] = useState('overview');
@@ -14,8 +18,13 @@ function App() {
   const [focusMode, setFocusMode] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>('system');
 
-  // Temporary prototype notification count.
-  const notificationCount = 3;
+  const [assistantStatus, setAssistantStatus] = useState<AssistantStatus | null>(null);
+  const notificationCount = assistantStatus?.unreadCount ?? 0;
+
+  useEffect(() => {
+    void window.sidekick.assistant.status().then(setAssistantStatus).catch(() => undefined);
+    return window.sidekick.assistant.onUpdate(update => setAssistantStatus(update.status));
+  }, []);
 
   const activePage = navigationItems.find(
     (item) => item.id === activeSection
@@ -51,6 +60,7 @@ function App() {
         collapsed={sidebarCollapsed}
         onNavigate={setActiveSection}
         onToggle={() => setSidebarCollapsed((previous) => !previous)}
+        notificationCount={notificationCount}
       />
 
       <main className="dashboard-main">
@@ -62,17 +72,27 @@ function App() {
           theme={theme}
           onFocusToggle={() => setFocusMode((previous) => !previous)}
           onThemeChange={setTheme}
-          onNotificationsClick={() => setActiveSection('notifications')}
+          onNotificationsClick={() => setActiveSection('assistant')}
+          assistantState={assistantStatus?.state ?? 'initializing'}
+          onAssistantClick={() => setActiveSection('assistant')}
         />
 
         <div className="dashboard-content">
           {activeSection === 'productivity' ? (
             <ProductivityPage />
+          ) : activeSection === 'assistant' ? (
+            <AssistantPage />
+          ) : activeSection === 'notifications' ? (
+            <AssistantPage />
+          ) : activeSection === 'learning' ? (
+            <LearningPage />
+          ) : activeSection === 'finance' ? (
+            <FinancePage />
           ) : activeSection === 'wellness' ? (
             <WellnessPage />
           ) : activeSection === 'overview' ? (
             <OverviewPage onNavigate={setActiveSection} />
-                    ) : activeSection === 'planner' ? (
+          ) : activeSection === 'planner' ? (
             <PlannerPage />
           ) : (
             <section className="section-placeholder">
