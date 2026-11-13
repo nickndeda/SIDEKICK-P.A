@@ -27,6 +27,7 @@ const databasePool: Pool = mysql.createPool({
   queueLimit: 0,
 
   charset: 'utf8mb4',
+  timezone: 'local',
   enableKeepAlive: true,
   keepAliveInitialDelay: 0
 });

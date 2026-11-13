@@ -9,39 +9,40 @@ import {
   faCheck,
   faPen,
   faTrash,
-  faXmark
+  faXmark,
+  faBoxOpen,
+  faRotateLeft,
+  faTriangleExclamation
 } from '@fortawesome/free-solid-svg-icons';
 
 import AppIcon from '../components/AppIcon';
 import '../styles/planner.css';
 
-type TaskPriority = 'low' | 'normal' | 'high' | 'critical';
+type Task = Awaited<
+  ReturnType<typeof window.sidekick.tasks.list>
+>[number];
 
-type Task = {
-  id: string;
+type DeletedTask = Awaited<
+  ReturnType<typeof window.sidekick.deletedTasks.list>
+>[number];
+
+type TaskPriority = Task['priority'];
+
+type TaskInput = {
   title: string;
   description: string | null;
   priority: TaskPriority;
   dueAt: Date | null;
-  status: 'pending' | 'in_progress' | 'completed';
 };
 
-type TaskInput = Pick<Task, 'title' | 'description' | 'priority' | 'dueAt'>;
+type PlannerTab = 'tasks' | 'trash';
 
-type PlannerWindow = Window & {
-  sidekick: {
-    tasks: {
-      list: () => Promise<Task[]>;
-      create: (input: TaskInput) => Promise<unknown>;
-      update: (id: string, input: TaskInput) => Promise<unknown>;
-      complete: (id: string) => Promise<unknown>;
-      delete: (id: string) => Promise<unknown>;
-    };
-  };
-};
-
-function formatDueDate(value: Date | null): string {
+function formatDate(value: Date | null): string {
   if (!value) return 'No deadline';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return 'Invalid date';
 
   return new Intl.DateTimeFormat('en-KE', {
     day: 'numeric',
@@ -49,7 +50,7 @@ function formatDueDate(value: Date | null): string {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit'
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function toDateTimeLocal(value: Date | null): string {
@@ -68,9 +69,18 @@ function toDateTimeLocal(value: Date | null): string {
 
 function PlannerPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [deletedTasks, setDeletedTasks] = useState<DeletedTask[]>([]);
+
+  const [activeTab, setActiveTab] = useState<PlannerTab>('tasks');
+
   const [loading, setLoading] = useState(true);
+  const [trashLoading, setTrashLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [busyArchiveId, setBusyArchiveId] = useState<string | null>(null);
+  const [emptyingTrash, setEmptyingTrash] = useState(false);
+
   const [error, setError] = useState('');
+  const [trashError, setTrashError] = useState('');
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
@@ -84,18 +94,44 @@ function PlannerPage() {
     setError('');
 
     try {
-      const savedTasks = await (window as unknown as PlannerWindow).sidekick.tasks.list();
+      const savedTasks = await window.sidekick.tasks.list();
       setTasks(savedTasks);
     } catch (err) {
       console.error('Failed to load tasks:', err);
-      setError('Unable to load tasks. Check your database connection and try again.');
+      setError(
+        'Unable to load tasks. Check your database connection and try again.'
+      );
     } finally {
       setLoading(false);
     }
   }
 
+  async function loadDeletedTasks() {
+    setTrashLoading(true);
+    setTrashError('');
+
+    try {
+      const archivedTasks = await window.sidekick.deletedTasks.list();
+      setDeletedTasks(archivedTasks);
+    } catch (err) {
+      console.error('Failed to load deleted tasks:', err);
+      setTrashError(
+        'Unable to load Trash. Check your database connection and try again.'
+      );
+    } finally {
+      setTrashLoading(false);
+    }
+  }
+
+  async function refreshPlanner() {
+    await Promise.all([
+      loadTasks(),
+      loadDeletedTasks()
+    ]);
+  }
+
   useEffect(() => {
-    void loadTasks();
+    void refreshPlanner();
   }, []);
 
   function resetForm() {
@@ -130,7 +166,7 @@ function PlannerPage() {
     setError('');
 
     try {
-      const input = {
+      const input: TaskInput = {
         title: title.trim(),
         description: description.trim() || null,
         priority,
@@ -138,9 +174,9 @@ function PlannerPage() {
       };
 
       if (editingTaskId) {
-        await (window as unknown as PlannerWindow).sidekick.tasks.update(editingTaskId, input);
+        await window.sidekick.tasks.update(editingTaskId, input);
       } else {
-        await (window as unknown as PlannerWindow).sidekick.tasks.create(input);
+        await window.sidekick.tasks.create(input);
       }
 
       resetForm();
@@ -160,7 +196,7 @@ function PlannerPage() {
 
     try {
       setError('');
-      await (window as unknown as PlannerWindow).sidekick.tasks.complete(task.id);
+      await window.sidekick.tasks.complete(task.id);
       await loadTasks();
     } catch (err) {
       console.error('Failed to complete task:', err);
@@ -170,23 +206,123 @@ function PlannerPage() {
 
   async function handleDelete(task: Task) {
     const confirmed = window.confirm(
-      `Delete "${task.title}"? This action cannot be undone.`
+      `Move "${task.title}" to Trash?\n\nYou can restore it later.`
     );
 
     if (!confirmed) return;
 
     try {
       setError('');
-      await (window as unknown as PlannerWindow).sidekick.tasks.delete(task.id);
+
+      const deleted = await window.sidekick.tasks.delete(task.id);
+
+      if (!deleted) {
+        throw new Error('This task could not be found.');
+      }
 
       if (editingTaskId === task.id) {
         resetForm();
       }
 
-      await loadTasks();
+      await Promise.all([
+        loadTasks(),
+        loadDeletedTasks()
+      ]);
     } catch (err) {
-      console.error('Failed to delete task:', err);
-      setError('Unable to delete this task.');
+      console.error('Failed to move task to Trash:', err);
+      setError(
+        err instanceof Error ? err.message : 'Unable to move this task to Trash.'
+      );
+    }
+  }
+
+  async function handleRestore(task: DeletedTask) {
+    const confirmed = window.confirm(
+      `Restore "${task.title}" to your active tasks?`
+    );
+
+    if (!confirmed) return;
+
+    setBusyArchiveId(task.archiveId);
+    setTrashError('');
+
+    try {
+      const restored = await window.sidekick.deletedTasks.restore(
+        task.archiveId
+      );
+
+      if (!restored) {
+        throw new Error('This archived task could not be found.');
+      }
+
+      await Promise.all([
+        loadTasks(),
+        loadDeletedTasks()
+      ]);
+    } catch (err) {
+      console.error('Failed to restore task:', err);
+      setTrashError(
+        err instanceof Error ? err.message : 'Unable to restore this task.'
+      );
+    } finally {
+      setBusyArchiveId(null);
+    }
+  }
+
+  async function handlePermanentDelete(task: DeletedTask) {
+    const confirmed = window.confirm(
+      `Permanently delete "${task.title}"?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setBusyArchiveId(task.archiveId);
+    setTrashError('');
+
+    try {
+      const deleted = await window.sidekick.deletedTasks.permanentlyDelete(
+        task.archiveId
+      );
+
+      if (!deleted) {
+        throw new Error('This archived task could not be found.');
+      }
+
+      await loadDeletedTasks();
+    } catch (err) {
+      console.error('Failed to permanently delete task:', err);
+      setTrashError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to permanently delete this task.'
+      );
+    } finally {
+      setBusyArchiveId(null);
+    }
+  }
+
+  async function handleEmptyTrash() {
+    if (deletedTasks.length === 0 || emptyingTrash) return;
+
+    const confirmed = window.confirm(
+      `Permanently delete all ${deletedTasks.length} archived tasks?\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setEmptyingTrash(true);
+    setTrashError('');
+
+    try {
+      await window.sidekick.deletedTasks.empty();
+      await loadDeletedTasks();
+    } catch (err) {
+      console.error('Failed to empty Trash:', err);
+      setTrashError(
+        err instanceof Error ? err.message : 'Unable to empty Trash.'
+      );
+    } finally {
+      setEmptyingTrash(false);
     }
   }
 
@@ -211,8 +347,8 @@ function PlannerPage() {
         <button
           type="button"
           className="planner-refresh-button"
-          onClick={() => void loadTasks()}
-          disabled={loading}
+          onClick={() => void refreshPlanner()}
+          disabled={loading || trashLoading}
         >
           <AppIcon icon={faRotate} />
           Refresh
@@ -223,7 +359,7 @@ function PlannerPage() {
         <article className="planner-stat-card">
           <span>Total tasks</span>
           <strong>{tasks.length}</strong>
-          <small>All saved tasks</small>
+          <small>All active saved tasks</small>
         </article>
 
         <article className="planner-stat-card">
@@ -239,212 +375,367 @@ function PlannerPage() {
         </article>
       </div>
 
-      <div className="planner-layout">
-        <section className="planner-form-card">
-          <div className="planner-card-heading">
-            <div className="planner-heading-icon">
-              <AppIcon icon={editingTaskId ? faPen : faCirclePlus} />
-            </div>
+      <div className="planner-tabs" role="tablist" aria-label="Planner views">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'tasks'}
+          className={`planner-tab ${activeTab === 'tasks' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tasks')}
+        >
+          <AppIcon icon={faListCheck} />
+          Tasks
+          <span className="planner-tab-count">{tasks.length}</span>
+        </button>
 
-            <div>
-              <h3>{editingTaskId ? 'Edit task' : 'Create a task'}</h3>
-              <p>
-                {editingTaskId
-                  ? 'Update your task details.'
-                  : 'Add something you need to accomplish.'}
-              </p>
-            </div>
-          </div>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'trash'}
+          className={`planner-tab ${activeTab === 'trash' ? 'active' : ''}`}
+          onClick={() => setActiveTab('trash')}
+        >
+          <AppIcon icon={faTrash} />
+          Trash
+          <span className="planner-tab-count">{deletedTasks.length}</span>
+        </button>
+      </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="planner-field">
-              <label htmlFor="task-title">
-                Task title <span>*</span>
-              </label>
-
-              <input
-                id="task-title"
-                type="text"
-                placeholder="e.g. Revise Data Structures"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                maxLength={200}
-                required
-              />
-            </div>
-
-            <div className="planner-field">
-              <label htmlFor="task-description">Description</label>
-
-              <textarea
-                id="task-description"
-                placeholder="Add more details about this task..."
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                rows={4}
-              />
-            </div>
-
-            <div className="planner-form-row">
-              <div className="planner-field">
-                <label htmlFor="task-priority">Priority</label>
-
-                <select
-                  id="task-priority"
-                  value={priority}
-                  onChange={(event) =>
-                    setPriority(event.target.value as TaskPriority)
-                  }
-                >
-                  <option value="low">Low</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
-                </select>
+      {activeTab === 'tasks' ? (
+        <div className="planner-layout">
+          <section className="planner-form-card">
+            <div className="planner-card-heading">
+              <div className="planner-heading-icon">
+                <AppIcon icon={editingTaskId ? faPen : faCirclePlus} />
               </div>
 
+              <div>
+                <h3>{editingTaskId ? 'Edit task' : 'Create a task'}</h3>
+                <p>
+                  {editingTaskId
+                    ? 'Update your task details.'
+                    : 'Add something you need to accomplish.'}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit}>
               <div className="planner-field">
-                <label htmlFor="task-due-date">Deadline</label>
+                <label htmlFor="task-title">
+                  Task title <span>*</span>
+                </label>
 
                 <input
-                  id="task-due-date"
-                  type="datetime-local"
-                  value={dueAt}
-                  onChange={(event) => setDueAt(event.target.value)}
+                  id="task-title"
+                  type="text"
+                  placeholder="e.g. Revise Data Structures"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  maxLength={200}
+                  required
                 />
+              </div>
+
+              <div className="planner-field">
+                <label htmlFor="task-description">Description</label>
+
+                <textarea
+                  id="task-description"
+                  placeholder="Add more details about this task..."
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              <div className="planner-form-row">
+                <div className="planner-field">
+                  <label htmlFor="task-priority">Priority</label>
+
+                  <select
+                    id="task-priority"
+                    value={priority}
+                    onChange={(event) =>
+                      setPriority(event.target.value as TaskPriority)
+                    }
+                  >
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                  </select>
+                </div>
+
+                <div className="planner-field">
+                  <label htmlFor="task-due-date">Deadline</label>
+
+                  <input
+                    id="task-due-date"
+                    type="datetime-local"
+                    value={dueAt}
+                    onChange={(event) => setDueAt(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="planner-error" role="alert">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="planner-submit-button"
+                disabled={saving}
+              >
+                <AppIcon icon={editingTaskId ? faCheck : faCirclePlus} />
+                {saving
+                  ? 'Saving...'
+                  : editingTaskId
+                    ? 'Save changes'
+                    : 'Create task'}
+              </button>
+
+              {editingTaskId && (
+                <button
+                  type="button"
+                  className="planner-cancel-button"
+                  onClick={resetForm}
+                >
+                  <AppIcon icon={faXmark} />
+                  Cancel editing
+                </button>
+              )}
+            </form>
+          </section>
+
+          <section className="planner-tasks-card">
+            <div className="planner-card-heading">
+              <div className="planner-heading-icon">
+                <AppIcon icon={faListCheck} />
+              </div>
+
+              <div>
+                <h3>Your tasks</h3>
+                <p>Your active tasks saved in the database.</p>
               </div>
             </div>
 
-            {error && (
-              <div className="planner-error" role="alert">
+            {loading ? (
+              <div className="planner-state">Loading your tasks...</div>
+            ) : error && tasks.length === 0 ? (
+              <div className="planner-state planner-state-error" role="alert">
+                {error}
+              </div>
+            ) : tasks.length === 0 ? (
+              <div className="planner-empty-state">
+                <AppIcon icon={faCalendarDays} />
+                <h4>No tasks yet</h4>
+                <p>
+                  Your tasks will appear here once you create your first one.
+                </p>
+              </div>
+            ) : (
+              <div className="planner-task-list">
+                {tasks.map((task) => (
+                  <article className="planner-task-item" key={task.id}>
+                    <div className="planner-task-main">
+                      <div className="planner-task-title-row">
+                        <h4>{task.title}</h4>
+
+                        <span className={`planner-priority priority-${task.priority}`}>
+                          {task.priority}
+                        </span>
+                      </div>
+
+                      {task.description && (
+                        <p className="planner-task-description">
+                          {task.description}
+                        </p>
+                      )}
+
+                      <div className="planner-task-meta">
+                        <span>
+                          <AppIcon icon={faCalendarDays} />
+                          {formatDate(task.dueAt)}
+                        </span>
+
+                        <span className={`planner-status status-${task.status}`}>
+                          {task.status.replace('_', ' ')}
+                        </span>
+                      </div>
+
+                      <div className="planner-task-actions">
+                        {task.status !== 'completed' &&
+                          task.status !== 'cancelled' && (
+                            <button
+                              type="button"
+                              className="planner-action-button"
+                              onClick={() => void handleComplete(task)}
+                              title="Mark as completed"
+                            >
+                              <AppIcon icon={faCheck} />
+                              Complete
+                            </button>
+                          )}
+
+                        <button
+                          type="button"
+                          className="planner-action-button"
+                          onClick={() => startEditing(task)}
+                          title="Edit task"
+                        >
+                          <AppIcon icon={faPen} />
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="planner-action-button planner-delete-button"
+                          onClick={() => void handleDelete(task)}
+                          title="Move task to Trash"
+                        >
+                          <AppIcon icon={faTrash} />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+
+            {error && tasks.length > 0 && (
+              <div className="planner-error planner-list-error" role="alert">
                 {error}
               </div>
             )}
+          </section>
+        </div>
+      ) : (
+        <section className="planner-trash-card">
+          <div className="planner-trash-heading">
+            <div className="planner-card-heading">
+              <div className="planner-heading-icon">
+                <AppIcon icon={faTrash} />
+              </div>
+
+              <div>
+                <h3>Recently deleted</h3>
+                <p>Restore tasks or permanently remove them.</p>
+              </div>
+            </div>
 
             <button
-              type="submit"
-              className="planner-submit-button"
-              disabled={saving}
+              type="button"
+              className="planner-empty-trash-button"
+              onClick={() => void handleEmptyTrash()}
+              disabled={
+                deletedTasks.length === 0 ||
+                trashLoading ||
+                emptyingTrash ||
+                busyArchiveId !== null
+              }
             >
-              <AppIcon icon={editingTaskId ? faCheck : faCirclePlus} />
-              {saving
-                ? 'Saving...'
-                : editingTaskId
-                  ? 'Save changes'
-                  : 'Create task'}
+              <AppIcon icon={faTrash} />
+              {emptyingTrash ? 'Emptying...' : 'Empty Trash'}
             </button>
-
-            {editingTaskId && (
-              <button
-                type="button"
-                className="planner-cancel-button"
-                onClick={resetForm}
-              >
-                <AppIcon icon={faXmark} />
-                Cancel editing
-              </button>
-            )}
-          </form>
-        </section>
-
-        <section className="planner-tasks-card">
-          <div className="planner-card-heading">
-            <div className="planner-heading-icon">
-              <AppIcon icon={faListCheck} />
-            </div>
-
-            <div>
-              <h3>Your tasks</h3>
-              <p>Your saved tasks from the database.</p>
-            </div>
           </div>
 
-          {loading ? (
-            <div className="planner-state">Loading your tasks...</div>
-          ) : tasks.length === 0 ? (
+          <div className="planner-trash-notice">
+            <AppIcon icon={faTriangleExclamation} />
+            <span>
+              Permanently deleted tasks cannot be recovered.
+            </span>
+          </div>
+
+          {trashError && (
+            <div className="planner-error" role="alert">
+              {trashError}
+            </div>
+          )}
+
+          {trashLoading ? (
+            <div className="planner-state">Loading Trash...</div>
+          ) : deletedTasks.length === 0 ? (
             <div className="planner-empty-state">
-              <AppIcon icon={faCalendarDays} />
-              <h4>No tasks yet</h4>
+              <AppIcon icon={faBoxOpen} />
+              <h4>Your Trash is empty</h4>
               <p>
-                Your tasks will appear here once you create your first one.
+                Tasks you delete will appear here. You can restore them or
+                permanently remove them.
               </p>
             </div>
           ) : (
             <div className="planner-task-list">
-              {tasks.map((task) => (
-                <article className="planner-task-item" key={task.id}>
-                  <div className="planner-task-main">
-                    <div className="planner-task-title-row">
-                      <h4>{task.title}</h4>
+              {deletedTasks.map((task) => {
+                const busy = busyArchiveId === task.archiveId || emptyingTrash;
 
-                      <span className={`planner-priority priority-${task.priority}`}>
-                        {task.priority}
-                      </span>
-                    </div>
+                return (
+                  <article
+                    className="planner-task-item planner-deleted-task"
+                    key={task.archiveId}
+                  >
+                    <div className="planner-task-main">
+                      <div className="planner-task-title-row">
+                        <h4>{task.title}</h4>
 
-                    {task.description && (
-                      <p className="planner-task-description">
-                        {task.description}
-                      </p>
-                    )}
+                        <span className={`planner-priority priority-${task.priority}`}>
+                          {task.priority}
+                        </span>
+                      </div>
 
-                    <div className="planner-task-meta">
-                      <span>
-                        <AppIcon icon={faCalendarDays} />
-                        {formatDueDate(task.dueAt)}
-                      </span>
-
-                      <span className={`planner-status status-${task.status}`}>
-                        {task.status.replace('_', ' ')}
-                      </span>
-                    </div>
-
-                    <div className="planner-task-actions">
-                      {task.status !== 'completed' && (
-                        <button
-                          type="button"
-                          className="planner-action-button"
-                          onClick={() => void handleComplete(task)}
-                          title="Mark as completed"
-                        >
-                          <AppIcon icon={faCheck} />
-                          Complete
-                        </button>
+                      {task.description && (
+                        <p className="planner-task-description">
+                          {task.description}
+                        </p>
                       )}
 
-                      <button
-                        type="button"
-                        className="planner-action-button"
-                        onClick={() => startEditing(task)}
-                        title="Edit task"
-                      >
-                        <AppIcon icon={faPen} />
-                        Edit
-                      </button>
+                      <div className="planner-task-meta planner-trash-meta">
+                        <span>
+                          <AppIcon icon={faCalendarDays} />
+                          Deadline: {formatDate(task.dueAt)}
+                        </span>
 
-                      <button
-                        type="button"
-                        className="planner-action-button planner-delete-button"
-                        onClick={() => void handleDelete(task)}
-                        title="Delete task"
-                      >
-                        <AppIcon icon={faTrash} />
-                        Delete
-                      </button>
+                        <span className={`planner-status status-${task.status}`}>
+                          {task.status.replace('_', ' ')}
+                        </span>
+
+                        <span className="planner-deleted-date">
+                          Deleted: {formatDate(task.deletedAt)}
+                        </span>
+                      </div>
+
+                      <div className="planner-task-actions">
+                        <button
+                          type="button"
+                          className="planner-action-button planner-restore-button"
+                          onClick={() => void handleRestore(task)}
+                          disabled={busy}
+                        >
+                          <AppIcon icon={faRotateLeft} />
+                          {busyArchiveId === task.archiveId ? 'Working...' : 'Restore'}
+                        </button>
+
+                        <button
+                          type="button"
+                          className="planner-action-button planner-delete-button"
+                          onClick={() => void handlePermanentDelete(task)}
+                          disabled={busy}
+                        >
+                          <AppIcon icon={faTrash} />
+                          Permanently delete
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-
-          {error && tasks.length > 0 && (
-            <div className="planner-error planner-list-error" role="alert">
-              {error}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
-      </div>
+      )}
     </section>
   );
 }

@@ -5,6 +5,9 @@ import { getDatabasePool } from './connection';
 
 import * as createTasksMigration from './migrations/001_create_tasks';
 import * as createDeletedTasksMigration from './migrations/002_create_deleted_tasks';
+import * as createProductivityMigration from './migrations/003_create_productivity_tables';
+import * as linkProductivitySessionsToTasks from './migrations/004_link_productivity_sessions_to_tasks';
+import * as createWellnessTables from './migrations/005_create_wellness_tables';
 
 interface AppliedMigration extends RowDataPacket {
   name: string;
@@ -12,7 +15,10 @@ interface AppliedMigration extends RowDataPacket {
 
 const migrations = [
   createTasksMigration,
-  createDeletedTasksMigration
+  createDeletedTasksMigration,
+  createProductivityMigration,
+  linkProductivitySessionsToTasks,
+  createWellnessTables
 ];
 
 export async function runMigrations(

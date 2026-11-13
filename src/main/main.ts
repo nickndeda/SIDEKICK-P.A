@@ -9,6 +9,11 @@ import {
 
 import { runMigrations } from './database/migrate';
 import { registerIpcHandlers } from './ipc/handlers';
+import { registerProductivityIpcHandlers } from './ipc/productivity-handlers';
+import { registerWellnessIpcHandlers } from './ipc/wellness-handlers';
+import { startScheduler, stopScheduler } from './core/scheduler';
+import { runWellnessReminderCycle } from './modules/wellness/wellness-service';
+import { createTray, destroyTray } from './tray-manager';
 
 let isQuitting = false;
 
@@ -27,6 +32,15 @@ function createWindow(): void {
     }
   });
 
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
+  createTray(mainWindow);
+
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
   });
@@ -41,6 +55,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  let databaseReady = false;
   try {
     const databaseInfo = await testDatabaseConnection();
 
@@ -49,6 +64,7 @@ app.whenReady().then(async () => {
     console.log(`MySQL version: ${databaseInfo.serverVersion}`);
 
     await runMigrations();
+    databaseReady = true;
 
     console.log('Database migrations completed.');
   } catch (error) {
@@ -58,15 +74,19 @@ app.whenReady().then(async () => {
     );
 
     console.log(
-      'Sidekick will continue in offline mode.'
+      'Database-backed features are unavailable while the local database is offline.'
     );
   }
 
   registerIpcHandlers();
+  registerProductivityIpcHandlers();
+  registerWellnessIpcHandlers();
 
   console.log('Sidekick IPC handlers registered.');
 
   createWindow();
+
+  if (databaseReady) startScheduler(runWellnessReminderCycle);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -76,9 +96,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // The window hides to the tray; scheduled wellness reminders keep running.
 });
 
 app.on('before-quit', (event) => {
@@ -88,6 +106,8 @@ app.on('before-quit', (event) => {
 
   event.preventDefault();
   isQuitting = true;
+  stopScheduler();
+  destroyTray();
 
   void closeDatabaseConnection()
     .catch((error) => {

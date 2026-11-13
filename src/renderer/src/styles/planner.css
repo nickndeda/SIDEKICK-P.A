@@ -55,6 +55,7 @@
 
 .planner-refresh-button:disabled {
   opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .planner-stats {
@@ -93,6 +94,58 @@
   font-size: 10px;
 }
 
+.planner-tabs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 18px;
+  padding: 5px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.planner-tab {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 550;
+  transition: var(--transition-fast);
+}
+
+.planner-tab:hover {
+  color: var(--color-text-primary);
+}
+
+.planner-tab.active {
+  border-color: var(--color-border);
+  background: var(--color-elevated);
+  color: var(--color-accent-highlight);
+}
+
+.planner-tab-count {
+  min-width: 19px;
+  height: 19px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 5px;
+  border-radius: var(--radius-full);
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  font-size: 9px;
+  font-weight: 650;
+}
+
 .planner-layout {
   display: grid;
   grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.5fr);
@@ -101,7 +154,8 @@
 }
 
 .planner-form-card,
-.planner-tasks-card {
+.planner-tasks-card,
+.planner-trash-card {
   min-width: 0;
   padding: 21px;
   border: 1px solid var(--color-border);
@@ -216,6 +270,7 @@
 
 .planner-submit-button:disabled {
   opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .planner-error {
@@ -226,6 +281,7 @@
   background: rgba(248, 113, 113, 0.08);
   color: var(--color-danger);
   font-size: 11px;
+  overflow-wrap: anywhere;
 }
 
 .planner-state {
@@ -332,6 +388,7 @@
   color: var(--color-text-secondary);
   font-size: 11px;
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 
 .planner-task-meta {
@@ -360,33 +417,6 @@
 
 .status-in_progress {
   color: var(--color-accent-highlight);
-}
-
-@media (max-width: 1050px) {
-  .planner-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 650px) {
-  .planner-heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .planner-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .planner-form-row {
-    grid-template-columns: 1fr;
-    gap: 0;
-  }
-
-  .planner-form-card,
-  .planner-tasks-card {
-    padding: 16px;
-  }
 }
 
 .planner-cancel-button {
@@ -436,11 +466,145 @@
   color: var(--color-accent-highlight);
 }
 
-.planner-delete-button:hover {
+.planner-action-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.planner-delete-button:hover:not(:disabled) {
   border-color: var(--color-danger);
   color: var(--color-danger);
 }
 
 .planner-list-error {
   margin-top: 15px;
+}
+
+/* Trash */
+
+.planner-trash-card {
+  width: 100%;
+}
+
+.planner-trash-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.planner-trash-heading .planner-card-heading {
+  margin-bottom: 0;
+}
+
+.planner-empty-trash-button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 10px;
+  font-weight: 550;
+  transition: var(--transition-fast);
+}
+
+.planner-empty-trash-button:hover:not(:disabled) {
+  border-color: var(--color-danger);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.planner-empty-trash-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.planner-trash-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 19px 0;
+  padding: 11px 13px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+
+.planner-trash-notice svg {
+  flex-shrink: 0;
+  color: var(--color-warning);
+}
+
+.planner-trash-meta {
+  row-gap: 9px;
+}
+
+.planner-deleted-date {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.planner-restore-button {
+  color: var(--color-success);
+}
+
+.planner-restore-button:hover:not(:disabled) {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.planner-deleted-task {
+  padding: 18px 0;
+}
+
+@media (max-width: 1050px) {
+  .planner-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .planner-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .planner-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .planner-form-card,
+  .planner-tasks-card,
+  .planner-trash-card {
+    padding: 16px;
+  }
+
+  .planner-trash-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .planner-empty-trash-button {
+    align-self: flex-start;
+  }
+
+  .planner-tabs {
+    width: 100%;
+  }
+
+  .planner-tab {
+    flex: 1;
+  }
 }
