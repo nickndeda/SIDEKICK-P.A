@@ -56,3 +56,14 @@ Evaluate notification timing, revision recommendations, and habit patterns one a
 - Model evaluation report and baseline comparison for every trained model.
 - Manual Windows tests for offline mode, tray/background work, notifications, model unavailable, and high-load behavior.
 - Measure background CPU/memory and inference latency on target class hardware before enabling always-on behavior.
+
+## Current implementation status — 2026-11-13
+
+- **Architecture documents:** completed in Phase 0.
+- **Existing foundation:** deterministic cross-module monitor, activity history, tray/background runtime, local notification policy, conversation and explicit memory persistence.
+- **Structured conversation actions:** implemented for explicit Planner task creation only. Output is schema-validated, stored as a 15-minute proposal, and executed with the proposal transition in one transaction after approval. Integration tests cover explicit intent, rejection, approval, and repeat-approval protection.
+- **Feedback:** helpful/not-helpful feedback is stored for assistant messages.
+- **Proactive reasoning:** opt-in, local-only, at most one attempt each hour and one finding each local day. It cites allowlisted Planner/Learning evidence and can only create an assistant activity. Requires a configured model server.
+- **Personal model:** task-delay logistic regression with minimum-data, chronological-holdout, and baseline-improvement gates; versioned artifact and user opt-in/delete controls. Unit fixtures validate training logic, but no real personal model is trained unless the user has sufficient completed tasks and enables training.
+- **Integration verification:** MySQL migrations 013–019 applied; migration 019 adds SHA-256 integrity metadata for stored model artifacts. Database-backed proposal/feedback/background-reasoning smoke tests and model unit tests pass. `npm test`, `npm run test:integration`, and `git diff --check` pass.
+- **Not complete:** no Ollama runtime is installed, so real inference/quality/background notification behavior is not verified. SQLite production storage, source-level model consent controls, full data export/retention, wider action catalog, Python training tooling, voice/connectors/orb, Windows installer, and actual target-hardware performance testing remain future work. Do not call this autonomous AI yet.

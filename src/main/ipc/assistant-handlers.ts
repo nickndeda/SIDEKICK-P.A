@@ -13,7 +13,7 @@ function recordId(value: unknown): string {
 }
 
 export function registerAssistantIpcHandlers(): void {
-  const channels = ['assistant:status','assistant:activities','assistant:monitoring:set','assistant:activity:read','assistant:activity:dismiss','assistant:conversations','assistant:conversation:get','assistant:conversation:new','assistant:conversation:delete','assistant:chat:send','assistant:preferences','assistant:preferences:set','assistant:model:check','assistant:memories','assistant:memory:save','assistant:memory:delete'];
+  const channels = ['assistant:status','assistant:activities','assistant:monitoring:set','assistant:activity:read','assistant:activity:dismiss','assistant:conversations','assistant:conversation:get','assistant:conversation:new','assistant:conversation:delete','assistant:chat:send','assistant:preferences','assistant:preferences:set','assistant:model:check','assistant:memories','assistant:memory:save','assistant:memory:delete','assistant:proposals','assistant:proposal:decide','assistant:feedback','assistant:task-risk','assistant:task-model:train','assistant:task-model:clear'];
   for (const channel of channels) ipcMain.removeHandler(channel);
   ipcMain.handle('assistant:status', event => { trusted(event); return getAssistantStatus(); });
   ipcMain.handle('assistant:activities', (event, limit, includeDismissed) => {
@@ -40,4 +40,10 @@ export function registerAssistantIpcHandlers(): void {
   ipcMain.handle('assistant:memories', event => { trusted(event); return chat.getAssistantMemories(); });
   ipcMain.handle('assistant:memory:save', (event,input) => { trusted(event); if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid memory data.'); return chat.saveAssistantMemory(input); });
   ipcMain.handle('assistant:memory:delete', (event,id) => { trusted(event); return chat.removeAssistantMemory(recordId(id)); });
+  ipcMain.handle('assistant:proposals', (event,conversationId) => { trusted(event); if(conversationId!==undefined&&typeof conversationId!=='string') throw new Error('Invalid conversation ID.'); return chat.getAssistantProposals(conversationId===undefined?undefined:recordId(conversationId)); });
+  ipcMain.handle('assistant:proposal:decide', (event,id,decision) => { trusted(event); if(decision!=='approve'&&decision!=='reject') throw new Error('Invalid proposal decision.'); return chat.decideAssistantProposal(recordId(id),decision); });
+  ipcMain.handle('assistant:feedback', (event,messageId,feedback) => { trusted(event); if(feedback!=='helpful'&&feedback!=='not_helpful') throw new Error('Invalid feedback.'); return chat.recordAssistantFeedback(recordId(messageId),feedback); });
+  ipcMain.handle('assistant:task-risk', event => { trusted(event); return chat.getAssistantTaskRiskSnapshot(); });
+  ipcMain.handle('assistant:task-model:train', event => { trusted(event); return chat.trainAssistantTaskDelayModel(); });
+  ipcMain.handle('assistant:task-model:clear', event => { trusted(event); return chat.clearAssistantTaskDelayModel(); });
 }

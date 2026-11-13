@@ -4,18 +4,18 @@ import { getDatabasePool } from '../database/connection';
 
 export type ChatMessage = { id: string; conversationId: string; role: 'user'|'assistant'; content: string; provider: string|null; createdAt: Date };
 export type Conversation = { id: string; title: string; updatedAt: Date; messages: ChatMessage[] };
-export type AssistantPreferences = { localModelUrl: string; localModelName: string; memoryEnabled: boolean };
+export type AssistantPreferences = { localModelUrl: string; localModelName: string; memoryEnabled: boolean; taskPredictionEnabled:boolean;backgroundReasoningEnabled:boolean };
 type Row = RowDataPacket & Record<string, unknown>;
 const mapMessage = (row: Row): ChatMessage => ({ id: String(row.id), conversationId: String(row.conversation_id), role: row.role as ChatMessage['role'], content: String(row.content), provider: row.provider == null ? null : String(row.provider), createdAt: row.created_at as Date });
 
 export async function preferences(pool: Pool = getDatabasePool()): Promise<AssistantPreferences> {
   await pool.execute('INSERT IGNORE INTO assistant_preferences(id,monitoring_enabled) VALUES(1,TRUE)');
-  const [rows] = await pool.query<Row[]>('SELECT local_model_url,local_model_name,memory_enabled FROM assistant_preferences WHERE id=1');
-  return { localModelUrl: String(rows[0]?.local_model_url ?? 'http://127.0.0.1:11434'), localModelName: String(rows[0]?.local_model_name ?? ''), memoryEnabled: Boolean(rows[0]?.memory_enabled) };
+  const [rows] = await pool.query<Row[]>('SELECT local_model_url,local_model_name,memory_enabled,task_prediction_enabled,background_reasoning_enabled FROM assistant_preferences WHERE id=1');
+  return { localModelUrl: String(rows[0]?.local_model_url ?? 'http://127.0.0.1:11434'), localModelName: String(rows[0]?.local_model_name ?? ''), memoryEnabled: Boolean(rows[0]?.memory_enabled),taskPredictionEnabled:Boolean(rows[0]?.task_prediction_enabled),backgroundReasoningEnabled:Boolean(rows[0]?.background_reasoning_enabled) };
 }
 
 export async function savePreferences(input: AssistantPreferences, pool: Pool = getDatabasePool()): Promise<AssistantPreferences> {
-  await pool.execute('UPDATE assistant_preferences SET local_model_url=?,local_model_name=?,memory_enabled=? WHERE id=1', [input.localModelUrl,input.localModelName,input.memoryEnabled]);
+  await pool.execute('UPDATE assistant_preferences SET local_model_url=?,local_model_name=?,memory_enabled=?,task_prediction_enabled=?,background_reasoning_enabled=? WHERE id=1', [input.localModelUrl,input.localModelName,input.memoryEnabled,input.taskPredictionEnabled,input.backgroundReasoningEnabled]);
   return preferences(pool);
 }
 
@@ -51,14 +51,14 @@ export async function deleteConversation(id: string, pool: Pool = getDatabasePoo
   return Number((result as { affectedRows?: number }).affectedRows ?? 0) > 0;
 }
 
-export async function listMemories(pool: Pool = getDatabasePool()): Promise<Array<{id:string;label:string;content:string;enabled:boolean;updatedAt:Date}>> {
-  const [rows] = await pool.query<Row[]>('SELECT id,label,content,enabled,updated_at FROM assistant_memories ORDER BY updated_at DESC');
-  return rows.map(row=>({id:String(row.id),label:String(row.label),content:String(row.content),enabled:Boolean(row.enabled),updatedAt:row.updated_at as Date}));
+export async function listMemories(pool: Pool = getDatabasePool()): Promise<Array<{id:string;label:string;content:string;enabled:boolean;expiresAt:Date|null;updatedAt:Date}>> {
+  const [rows] = await pool.query<Row[]>('SELECT id,label,content,enabled,expires_at,updated_at FROM assistant_memories ORDER BY updated_at DESC');
+  return rows.map(row=>({id:String(row.id),label:String(row.label),content:String(row.content),enabled:Boolean(row.enabled),expiresAt:row.expires_at as Date|null,updatedAt:row.updated_at as Date}));
 }
 
-export async function saveMemory(id: string|null,label:string,content:string,enabled:boolean,pool: Pool = getDatabasePool()): Promise<void> {
-  if (id) await pool.execute('UPDATE assistant_memories SET label=?,content=?,enabled=? WHERE id=?',[label,content,enabled,id]);
-  else await pool.execute('INSERT INTO assistant_memories(id,label,content,enabled) VALUES(?,?,?,?)',[randomUUID(),label,content,enabled]);
+export async function saveMemory(id: string|null,label:string,content:string,enabled:boolean,expiresAt:Date|null,pool: Pool = getDatabasePool()): Promise<void> {
+  if (id) await pool.execute('UPDATE assistant_memories SET label=?,content=?,enabled=?,expires_at=? WHERE id=?',[label,content,enabled,expiresAt,id]);
+  else await pool.execute('INSERT INTO assistant_memories(id,label,content,enabled,expires_at) VALUES(?,?,?,?,?)',[randomUUID(),label,content,enabled,expiresAt]);
 }
 
 export async function deleteMemory(id:string,pool:Pool=getDatabasePool()):Promise<boolean>{

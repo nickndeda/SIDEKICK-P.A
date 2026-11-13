@@ -41,7 +41,13 @@ const assistantAPI: AssistantApi = {
   checkModel: () => ipcRenderer.invoke('assistant:model:check'),
   memories: () => ipcRenderer.invoke('assistant:memories'),
   saveMemory: input => ipcRenderer.invoke('assistant:memory:save',input),
-  deleteMemory: id => ipcRenderer.invoke('assistant:memory:delete',id)
+  deleteMemory: id => ipcRenderer.invoke('assistant:memory:delete',id),
+  proposals: conversationId => ipcRenderer.invoke('assistant:proposals',conversationId),
+  decideProposal: (id,decision) => ipcRenderer.invoke('assistant:proposal:decide',id,decision),
+  feedback: (messageId,feedback) => ipcRenderer.invoke('assistant:feedback',messageId,feedback),
+  taskRisk: () => ipcRenderer.invoke('assistant:task-risk'),
+  trainTaskModel: () => ipcRenderer.invoke('assistant:task-model:train'),
+  clearTaskModel: () => ipcRenderer.invoke('assistant:task-model:clear')
 };
 
 const learningAPI: LearningApi = {

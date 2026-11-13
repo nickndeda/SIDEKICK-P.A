@@ -2,7 +2,7 @@
 
 **An offline-first, intelligent personal assistant designed to help students manage their academic, professional and everyday lives.**
 
-Sidekick P.A. is a Windows desktop personal assistant designed to help users organise their schedules, manage tasks, improve productivity, monitor learning progress, track personal finances and maintain healthy routines.
+Sidekick P.A. is a Windows desktop personal assistant designed to help users organise their schedules, manage tasks, improve productivity, monitor learning progress, track personal finances and maintain healthy routines. Its current assistant combines deterministic rules with optional local-model conversation and carefully gated intelligence features.
 
 Unlike conventional productivity applications that depend heavily on cloud services, Sidekick is being designed around an **offline-first, local-by-default architecture**. It aims to provide a persistent desktop presence, useful reminders and contextual assistance while keeping personal information under the user's control.
 
@@ -409,11 +409,11 @@ The application aims to follow these principles:
 
 ## 9. Intelligence and Future AI Capabilities
 
-Sidekick will initially use a rule-based system to manage scheduled events, reminders and simple contextual decisions.
+Sidekick keeps a rule-based system for scheduled events, reminders and predictable contextual decisions. The Assistant page also supports optional loopback-only local-model chat, explicit user-managed memories, opt-in background reasoning, approved Planner task drafts, feedback, and an optional personal task-delay model with strict data-quality gates.
 
-Future capabilities may include:
+Further intelligence work includes:
 
-- Local machine learning for personalised activity insights.
+- More local machine learning for personalised activity insights once enough real user data is available.
 - Adaptive reminder scheduling.
 - Learning recommendations based on performance history.
 - Context-aware task prioritisation.
@@ -444,7 +444,7 @@ These capabilities will be introduced incrementally, with consideration for the 
 
 ## 11. Current Development Status
 
-**Project stage:** Active development — application foundation.
+**Project stage:** Active development — feature modules and local assistant intelligence foundation.
 
 Currently established:
 
@@ -460,15 +460,21 @@ Currently established:
 - XAMPP development environment.
 - `sidekick_dev` MySQL database.
 - `mysql2` Node.js database driver.
+- MySQL/MariaDB repositories and sequential migrations for current local development.
+- Electron tray/background runtime and desktop notifications.
+- Cross-module deterministic assistant monitoring and local notifications.
+- Persistent assistant chat and explicit memory management.
+- Optional structured local-model chat and low-frequency background reasoning.
+- User-approved Planner task proposal execution and response feedback.
+- Opt-in personal task-delay model with chronological evaluation and versioning.
 
 Not yet implemented:
 
-- Actual database connection and persistence.
-- SQLite integration.
-- Fully functional Planner and other feature modules.
-- Shared application state across windows.
-- Native Windows notifications and system tray.
-- Assistant intelligence and voice capabilities.
+- SQLite production migration and database backup/restore.
+- Installed local model runtime and live inference verification.
+- Full data export/retention and per-domain model context controls.
+- Broader permissioned action catalog and unattended outcome reporting.
+- Voice interaction, external connectors, and floating assistant orb.
 - Production installer and deployment.
 
 ---

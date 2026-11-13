@@ -1,7 +1,8 @@
 
 import type {
   ResultSetHeader,
-  RowDataPacket
+  RowDataPacket,
+  PoolConnection
 } from 'mysql2/promise';
 
 import { getDatabasePool } from '../database/connection';
@@ -194,6 +195,26 @@ export async function createTask(
   }
 
   return task;
+}
+
+/** Inserts an approved assistant task inside the proposal's DB transaction. */
+export async function createTaskForAssistantProposal(
+  input: CreateTaskInput,
+  proposalId: string,
+  connection: PoolConnection
+): Promise<string> {
+  const title = validateTitle(input.title);
+  const priority = input.priority ?? 'normal';
+  const description = input.description?.trim() || null;
+  const dueAt = input.dueAt ?? null;
+  validatePriority(priority);
+  validateDueDate(dueAt);
+  const [result] = await connection.execute<ResultSetHeader>(
+    `INSERT INTO tasks(title,description,priority,status,due_at,assistant_proposal_id)
+     VALUES(?,?,?,'pending',?,?)`,
+    [title,description,priority,dueAt,proposalId]
+  );
+  return String(result.insertId);
 }
 
 export async function getTasks(

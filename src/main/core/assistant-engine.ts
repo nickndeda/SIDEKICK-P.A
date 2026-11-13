@@ -35,7 +35,8 @@ async function deliverPendingNotifications(): Promise<void> {
   const pending = await repo.pendingNotifications(20);
   const urgent = pending.filter(activity => activity.severity === 'high' || activity.severity === 'critical')
     .sort((a, b) => (a.severity === b.severity ? Number(a.eventType === 'assistant.daily_briefing') - Number(b.eventType === 'assistant.daily_briefing') : a.severity === 'critical' ? -1 : 1));
-  const selected = urgent[0];
+  // Optional model-generated recommendations are capped by the daily dedupe key and shared notification policy.
+  const selected = urgent[0] ?? pending.find(activity => activity.eventType === 'assistant.ai_reasoning');
   if (selected) {
     try { await assistantActions.execute({ type: 'assistant.notify', activity: selected }); }
     catch (error) { console.error('Assistant notification delivery failed:', error); return; }

@@ -2,9 +2,9 @@
 
 ## Purpose and verified baseline
 
-Sidekick is an Electron application with a React renderer, a TypeScript/Node.js main process, a preload bridge, feature repositories, and a shared main-process scheduler. The active database implementation is MySQL/MariaDB via `mysql2`, configured for local XAMPP development in `src/main/database/connection.ts`; SQLite is a stated future target, not the current runtime. Migrations 001–012 are registered. The renderer uses `contextIsolation: true` and `nodeIntegration: false` in `src/main/main.ts`.
+Sidekick is an Electron application with a React renderer, a TypeScript/Node.js main process, a preload bridge, feature repositories, and a shared main-process scheduler. The active database implementation is MySQL/MariaDB via `mysql2`, configured for local XAMPP development in `src/main/database/connection.ts`; SQLite is a stated future target, not the current runtime. Migrations 001–019 are registered. The renderer uses `contextIsolation: true` and `nodeIntegration: false` in `src/main/main.ts`.
 
-The assistant already has deterministic monitoring (`assistant-engine.ts`, `rule-engine.ts`), a typed in-process event bus, a context snapshot across Planner, Productivity, Wellness, Finance, and Learning, a restricted action registry, persistent findings, native notifications, persisted conversations, user-managed memories, and an optional loopback-only Ollama-compatible chat call. The LLM currently serves only user-initiated chat. It has no tool execution, approval workflow, background reasoning, or trained ML model. These are verified from the current source. The README's status section is older than the implementation and should be reconciled.
+The assistant already has deterministic monitoring (`assistant-engine.ts`, `rule-engine.ts`), a typed in-process event bus, context snapshots across Planner, Productivity, Wellness, Finance, and Learning, persistent findings, native notifications, persisted conversations, and user-managed memories. The optional loopback-only Ollama-compatible adapter uses bounded structured responses. It can draft a Planner task only after an explicit request, and task creation requires approval in the UI. Opt-in background reasoning is rate-limited and read-only. A personal task-delay logistic model is implemented with strict data and chronological evaluation gates, versioned artifacts, and SHA-256 integrity checks. The model runtime is not installed and no trained model or real inference is available in the development environment.
 
 ## Architecture decision
 
@@ -57,7 +57,7 @@ Feature services emit domain events after successful mutations. The orchestrator
 
 ## Autonomy boundary
 
-The current assistant may create local activity and show local notifications from registered actions. That is a narrow permitted autonomous action. It may not modify tasks, finances, learning records, or external state through LLM output. The next autonomy milestone requires (1) independent context-triggered reasoning at a bounded cadence, (2) a typed, allowlisted action proposal, (3) user-configured action permissions and approval for higher-risk changes, (4) execution through existing services, and (5) an outcome report. Do not describe the product as autonomous AI until that end-to-end path passes acceptance tests.
+The current assistant may create local activity and show notifications from registered actions. It may also execute one narrowly typed Planner task proposal after explicit user approval. Live model behavior and unattended outcome reporting remain unverified. The next autonomy milestone requires (1) verified local model reasoning while the app is backgrounded, (2) safe typed action proposals, (3) user approval and execution through existing services, and (4) a verified outcome report. Do not describe the product as autonomous AI until that end-to-end path passes acceptance tests.
 
 ## Design constraints and unresolved decisions
 
@@ -70,4 +70,6 @@ The current assistant may create local activity and show local notifications fro
 
 ## Recommended first release
 
-Complete a typed read-only tool catalog and approval queue for reversible Planner/Study actions; add explicit feedback and preference capture; add background local-model reasoning only as an opt-in, low-frequency stage after deterministic deduplication; and instrument end-to-end outcomes. Defer Python ML until a local SQLite-compatible feature store, privacy/export controls, and minimum-data evaluation are established.
+The first personalized prediction is the **Personal Task Delay Risk** estimate specified in `AI_MODEL_SPECIFICATIONS.md`, trained only from the user's own completed due-dated tasks if strict sample and chronological evaluation gates pass. It must not be trained by default or treated as a fact. If the user's history is too small (a likely outcome for a single-user desktop app), Sidekick remains rules-first and may show a transparent overall baseline only when its denominator is sufficient.
+
+Before that model, complete a typed read-only tool catalog and approval queue for reversible Planner/Study actions; add explicit feedback and preference capture; add background local-model reasoning only as an opt-in, low-frequency stage after deterministic deduplication; and instrument end-to-end outcomes. Defer Python ML until a local SQLite-compatible feature store, privacy/export controls, and minimum-data evaluation are established.

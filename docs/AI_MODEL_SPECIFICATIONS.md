@@ -2,6 +2,75 @@
 
 This document describes candidates, not trained or deployed models. The repository currently has no Python environment, ML dependency, model artifact, training command, or ML evaluation suite. Do not report any model as trained until its artifact, data window, evaluation report, and version are present.
 
+## Concrete Sidekick model: Personal Task Delay Risk
+
+Rather than train one vague “assistant model” across unrelated data, the first personalized model should answer one useful, measurable question: **when a task is created, how likely is it to be completed after its due date?** The model can help Sidekick prioritize a daily plan, while the existing rule engine remains the source of deterministic deadline alerts. This is the recommended first model for this project.
+
+### Fit to the actual schema
+
+Verified fields come from `001_create_tasks.ts`: `created_at`, `due_at`, `completed_at`, `priority`, and `status`. Task titles and descriptions are present, but the first model deliberately excludes their text. Migration `004_link_productivity_sessions_to_tasks.ts` adds `productivity_sessions.task_id`; those sessions contain `session_type`, `status`, `target_minutes`, `started_at`, `ended_at`, and `elapsed_seconds`. Learning revisions and quiz attempts have explicit due/review dates, grades, and scores, but they should remain separate signals for the first task model rather than be mixed into its label.
+
+The project exposes schema and service code, not the user's actual history values. Therefore actual sample counts, personal completion patterns, class balance, and achieved accuracy are unknown. The system must inspect those locally before deciding whether a trained personalized model is possible.
+
+### Contract
+
+Input is an as-of-creation snapshot for one task. Output is:
+
+```ts
+interface TaskDelayEstimate {
+  taskId: string;
+  probabilityLate: number | null;
+  band: 'low' | 'elevated' | 'high' | 'unknown';
+  evidence: string[];
+  sampleCount: number;
+  modelVersion: string | null;
+  method: 'rules' | 'personal_baseline' | 'logistic_regression';
+  generatedAt: Date;
+}
+```
+
+`probabilityLate` is absent (`null`) when evidence is insufficient. This is a planning estimate, not a fact about the user or a judgment about effort. The output is an input to recommendation ranking, not permission to change the task or send an unbounded notification.
+
+### Features and label
+
+| Feature | Derived from | Safeguard |
+|---|---|---|
+| Priority | `tasks.priority` | Treat as an ordinal/category, not proof of effort. |
+| Lead time | `created_at` and `due_at` | Compute non-negative hours/days at the snapshot; no future dates beyond the task's due date are features. |
+| Due weekday and local-time bucket | `due_at` | Use local calendar/timezone consistently; do not retain precise time where a coarse bucket suffices. |
+| Creation weekday and time bucket | `created_at` | Derive in user's local timezone. |
+| Prior personal late-completion rate | Earlier tasks only, using `completed_at > due_at` | Compute as-of task creation; include numerator and denominator; smooth and suppress when sparse. |
+| Prior completed task count | Earlier `completed_at` values | Strictly exclude the target task and all records completed after prediction time. |
+| Prior focus consistency | Productivity sessions linked by `task_id`, ending before task creation | Optional only if enough records exist; do not treat focus duration as proof of productivity. |
+
+**Label:** for tasks with a due date and a known terminal completion timestamp, `late = completed_at > due_at`; on-time is `completed_at <= due_at`. Exclude cancelled tasks, tasks without due dates, and tasks that are still open from supervised training. Do not label an overdue open task as a completed outcome. This avoids treating censored/incomplete records as known positives. The current task table stores only the latest values, so historical priority/due-date edits cannot be reconstructed; the initial model must not claim to learn from edit history.
+
+Do not use task title/description, post-completion fields, future focus sessions, quiz answers, financial records, or health/wellness records as features. Keep model features local and short-lived. Feature extraction must record the prediction timestamp and source window.
+
+### Algorithm progression
+
+1. **Cold start (always available):** rules rank explicit urgency from priority and time-to-deadline. Call the result a rule-based urgency score, not a learned probability.
+2. **Sparse history:** a Beta-Binomial personal late-rate baseline with a broad prior can describe the user's overall past rate only when there are enough completed, due-dated tasks. It must show the denominator and a wide uncertainty interval. Do not make task-specific claims from this baseline.
+3. **Personalized model:** after a minimum of 200 eligible closed tasks, at least 40 late and 40 on-time examples, and a chronological holdout of at least 40 tasks, evaluate an L2-regularized logistic regression with the limited features above. If there is no sufficient class balance or chronological test set, remain in the prior stage. No cross-user pooling is planned; it would conflict with local-only user data unless separately consented and designed.
+
+These are conservative initial gates for a small personal dataset, to be revisited only from observed evaluation results. A typical individual may never meet the supervised gate; rules and transparent aggregates remain useful in that case.
+
+### Training, evaluation and deployment
+
+- Create examples only from the user's real local task history; no synthetic training rows.
+- Split chronologically and calculate historical aggregate features using only records completed before each example's creation time. Ensure a task cannot contribute to its own feature values.
+- Compare against a base-rate predictor and the existing rule score. Evaluate Brier score, five-bin expected calibration error (ECE), precision/recall at the chosen alert threshold, and false high-risk alerts per week.
+- Require at least a 5% Brier improvement over baseline and ECE ≤ 0.15 on the chronological holdout before displaying probability bands. If either gate fails, publish `unknown` and keep rules.
+- Record sample count, source window, feature schema version, training timestamp, algorithm/library version, artifact checksum, metrics, and approval state. Keep the previous good version for rollback.
+- Use a small CPU logistic model. Inference should be an in-process calculation or short-lived Python worker only if implementation requires it; no permanent Python daemon.
+- Train no more than monthly or after a substantial new-data threshold, only when learning is enabled. Never train after every task event.
+
+### Boundaries and user experience
+
+Sidekick may use a high-confidence estimate to suggest “start this today because similar tasks have often run past their due date,” while showing the evidence and sample count. It must not change priority/due date, mark work as procrastination, or notify repeatedly without the existing policy gate. User feedback is explicit and separate from whether a task was late. A late task is not necessarily a bad recommendation, and an ignored recommendation is not negative feedback.
+
+The LLM has a different job: understand a question, retrieve relevant Sidekick records, explain the prediction, and create a typed proposal. It does not train this model, alter its label, or bypass action permission checks. Personalized ML and conversational reasoning remain independently optional.
+
 ## Candidate model register
 
 | Candidate | Goal and output | Inputs | Candidate method | Minimum data gate | Evaluation |

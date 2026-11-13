@@ -15,6 +15,13 @@ import * as createLearningTables from './migrations/009_create_learning_tables';
 import * as createAssistantActivity from './migrations/010_create_assistant_activity';
 import * as assistantConversations from './migrations/011_assistant_conversations';
 import * as orderAssistantMessages from './migrations/012_order_assistant_messages';
+import * as assistantActionsFeedback from './migrations/013_assistant_actions_feedback';
+import * as assistantTaskDelayModel from './migrations/014_assistant_task_delay_model';
+import * as assistantBackgroundReasoning from './migrations/015_assistant_background_reasoning';
+import * as versionTaskDelayModels from './migrations/016_version_task_delay_models';
+import * as taskModelCalibrationMetric from './migrations/017_task_model_calibration_metric';
+import * as assistantMemoryExpiry from './migrations/018_assistant_memory_expiry';
+import * as taskModelIntegrity from './migrations/019_task_model_integrity';
 
 interface AppliedMigration extends RowDataPacket {
   name: string;
@@ -32,7 +39,14 @@ const migrations = [
   createLearningTables,
   createAssistantActivity,
   assistantConversations,
-  orderAssistantMessages
+  orderAssistantMessages,
+  assistantActionsFeedback,
+  assistantTaskDelayModel,
+  assistantBackgroundReasoning,
+  versionTaskDelayModels,
+  taskModelCalibrationMetric,
+  assistantMemoryExpiry,
+  taskModelIntegrity
 ];
 
 export async function runMigrations(

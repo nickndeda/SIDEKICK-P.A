@@ -19,6 +19,7 @@ import { runWellnessReminderCycle } from './modules/wellness/wellness-service';
 import { runFinanceReminderCycle } from './modules/finance/finance-service';
 import { runLearningReminderCycle } from './modules/learning/learning-service';
 import { runAssistantMonitorCycle, startAssistantEngine, stopAssistantEngine, subscribeAssistantUpdates } from './core/assistant-engine';
+import { runAssistantBackgroundReasoning, stopAssistantBackgroundReasoning } from './core/assistant-conversation-service';
 import { createTray, destroyTray } from './tray-manager';
 
 let isQuitting = false;
@@ -116,6 +117,9 @@ app.whenReady().then(async () => {
     }
     await runAssistantMonitorCycle();
     await runWellnessReminderCycle();
+    void runAssistantBackgroundReasoning().catch(error => {
+      console.error('Assistant background reasoning cycle failed:', error);
+    });
   });
 
   app.on('activate', () => {
@@ -137,6 +141,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   isQuitting = true;
   stopScheduler();
+  stopAssistantBackgroundReasoning();
   void stopAssistantEngine();
   destroyTray();
 
