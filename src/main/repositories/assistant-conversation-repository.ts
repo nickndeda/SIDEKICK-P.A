@@ -1,27 +1,41 @@
 import { randomUUID } from 'node:crypto';
 import type { Pool, RowDataPacket } from 'mysql2/promise';
 import { getDatabasePool } from '../database/connection';
+import type { AssistantContextSources } from '../../shared/types/assistant';
 
 export type ChatMessage = { id: string; conversationId: string; role: 'user'|'assistant'; content: string; provider: string|null; createdAt: Date };
 export type Conversation = { id: string; title: string; updatedAt: Date; messages: ChatMessage[] };
-export type AssistantPreferences = { localModelUrl: string; localModelName: string; memoryEnabled: boolean; taskPredictionEnabled:boolean;backgroundReasoningEnabled:boolean };
+export type AssistantPreferences = { localModelUrl: string; localModelName: string; memoryEnabled: boolean; taskPredictionEnabled:boolean;backgroundReasoningEnabled:boolean;contextSources:AssistantContextSources };
 type Row = RowDataPacket & Record<string, unknown>;
 const mapMessage = (row: Row): ChatMessage => ({ id: String(row.id), conversationId: String(row.conversation_id), role: row.role as ChatMessage['role'], content: String(row.content), provider: row.provider == null ? null : String(row.provider), createdAt: row.created_at as Date });
 
 export async function preferences(pool: Pool = getDatabasePool()): Promise<AssistantPreferences> {
   await pool.execute('INSERT IGNORE INTO assistant_preferences(id,monitoring_enabled) VALUES(1,TRUE)');
-  const [rows] = await pool.query<Row[]>('SELECT local_model_url,local_model_name,memory_enabled,task_prediction_enabled,background_reasoning_enabled FROM assistant_preferences WHERE id=1');
-  return { localModelUrl: String(rows[0]?.local_model_url ?? 'http://127.0.0.1:11434'), localModelName: String(rows[0]?.local_model_name ?? ''), memoryEnabled: Boolean(rows[0]?.memory_enabled),taskPredictionEnabled:Boolean(rows[0]?.task_prediction_enabled),backgroundReasoningEnabled:Boolean(rows[0]?.background_reasoning_enabled) };
+  const [rows] = await pool.query<Row[]>('SELECT local_model_url,local_model_name,memory_enabled,task_prediction_enabled,background_reasoning_enabled,assistant_context_planner,assistant_context_productivity,assistant_context_wellness,assistant_context_finance,assistant_context_learning FROM assistant_preferences WHERE id=1');
+  const row=rows[0];
+  return { localModelUrl: String(row?.local_model_url ?? 'http://127.0.0.1:11434'), localModelName: String(row?.local_model_name ?? ''), memoryEnabled: Boolean(row?.memory_enabled),taskPredictionEnabled:Boolean(row?.task_prediction_enabled),backgroundReasoningEnabled:Boolean(row?.background_reasoning_enabled),contextSources:{planner:Boolean(row?.assistant_context_planner),productivity:Boolean(row?.assistant_context_productivity),wellness:Boolean(row?.assistant_context_wellness),finance:Boolean(row?.assistant_context_finance),learning:Boolean(row?.assistant_context_learning)} };
 }
 
 export async function savePreferences(input: AssistantPreferences, pool: Pool = getDatabasePool()): Promise<AssistantPreferences> {
-  await pool.execute('UPDATE assistant_preferences SET local_model_url=?,local_model_name=?,memory_enabled=?,task_prediction_enabled=?,background_reasoning_enabled=? WHERE id=1', [input.localModelUrl,input.localModelName,input.memoryEnabled,input.taskPredictionEnabled,input.backgroundReasoningEnabled]);
+  await pool.execute('UPDATE assistant_preferences SET local_model_url=?,local_model_name=?,memory_enabled=?,task_prediction_enabled=?,background_reasoning_enabled=?,assistant_context_planner=?,assistant_context_productivity=?,assistant_context_wellness=?,assistant_context_finance=?,assistant_context_learning=? WHERE id=1', [input.localModelUrl,input.localModelName,input.memoryEnabled,input.taskPredictionEnabled,input.backgroundReasoningEnabled,input.contextSources.planner,input.contextSources.productivity,input.contextSources.wellness,input.contextSources.finance,input.contextSources.learning]);
   return preferences(pool);
 }
 
 export async function listConversations(pool: Pool = getDatabasePool()): Promise<Conversation[]> {
   const [rows] = await pool.query<Row[]>('SELECT id,title,updated_at FROM assistant_conversations ORDER BY updated_at DESC LIMIT 50');
   return rows.map(row => ({ id:String(row.id),title:String(row.title),updatedAt:row.updated_at as Date,messages:[] }));
+}
+
+export async function exportConversations(pool:Pool=getDatabasePool()):Promise<Conversation[]>{
+  const [rows]=await pool.query<Row[]>(`SELECT c.id AS conversation_id,c.title,c.updated_at AS conversation_updated_at,m.id AS message_id,m.role AS message_role,m.content AS message_content,m.provider AS message_provider,m.created_at AS message_created_at FROM assistant_conversations c LEFT JOIN assistant_messages m ON m.conversation_id=c.id ORDER BY c.updated_at DESC,m.message_order ASC`);
+  const conversations=new Map<string,Conversation>();
+  for(const row of rows){
+    const id=String(row.conversation_id);
+    let conversation=conversations.get(id);
+    if(!conversation){conversation={id,title:String(row.title),updatedAt:row.conversation_updated_at as Date,messages:[]};conversations.set(id,conversation);}
+    if(row.message_id!=null)conversation.messages.push({id:String(row.message_id),conversationId:id,role:row.message_role as ChatMessage['role'],content:String(row.message_content),provider:row.message_provider==null?null:String(row.message_provider),createdAt:row.message_created_at as Date});
+  }
+  return [...conversations.values()];
 }
 
 export async function getConversation(id: string, pool: Pool = getDatabasePool()): Promise<Conversation|null> {

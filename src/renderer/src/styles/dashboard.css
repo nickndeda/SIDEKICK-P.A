@@ -566,6 +566,29 @@
   place-items: center;
 }
 
+.runtime-unavailable {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.runtime-unavailable > div {
+  max-width: 520px;
+  padding: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.runtime-unavailable p {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
 .section-placeholder-content {
   width: 100%;
   max-width: 460px;

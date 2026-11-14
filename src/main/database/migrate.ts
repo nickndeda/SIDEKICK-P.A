@@ -22,6 +22,8 @@ import * as versionTaskDelayModels from './migrations/016_version_task_delay_mod
 import * as taskModelCalibrationMetric from './migrations/017_task_model_calibration_metric';
 import * as assistantMemoryExpiry from './migrations/018_assistant_memory_expiry';
 import * as taskModelIntegrity from './migrations/019_task_model_integrity';
+import * as assistantContextSources from './migrations/020_assistant_context_sources';
+import * as assistantReasoningAudit from './migrations/021_assistant_reasoning_audit';
 
 interface AppliedMigration extends RowDataPacket {
   name: string;
@@ -46,7 +48,9 @@ const migrations = [
   versionTaskDelayModels,
   taskModelCalibrationMetric,
   assistantMemoryExpiry,
-  taskModelIntegrity
+  taskModelIntegrity,
+  assistantContextSources,
+  assistantReasoningAudit
 ];
 
 export async function runMigrations(

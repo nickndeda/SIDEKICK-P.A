@@ -28,9 +28,21 @@ function Sidebar({
       className={`sidebar ${collapsed ? 'sidebar--collapsed' : ''}`}
     >
       <div className="sidebar__brand">
-        <div className="sidebar__logo">
-          <AppIcon icon={faBolt} />
-        </div>
+        {collapsed ? (
+          <button
+            type="button"
+            className="sidebar__logo sidebar__logo-button"
+            onClick={onToggle}
+            title="Expand sidebar"
+            aria-label="Expand sidebar"
+          >
+            <AppIcon icon={faBolt} />
+          </button>
+        ) : (
+          <div className="sidebar__logo">
+            <AppIcon icon={faBolt} />
+          </div>
+        )}
 
         {!collapsed && (
           <div className="sidebar__brand-text">
@@ -85,9 +97,7 @@ function Sidebar({
             className="sidebar__status-icon"
           />
 
-          {!collapsed && (
-            <span>Working offline</span>
-          )}
+          {!collapsed && <span>Local workspace</span>}
         </div>
 
         <button

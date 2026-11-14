@@ -35,7 +35,10 @@ export interface AssistantUpdate {
 
 export interface AssistantChatMessage { id: string; conversationId: string; role: 'user'|'assistant'; content: string; provider: string|null; createdAt: Date; }
 export interface AssistantConversation { id: string; title: string; updatedAt: Date; messages: AssistantChatMessage[]; }
-export interface AssistantPreferences { localModelUrl: string; localModelName: string; memoryEnabled: boolean; taskPredictionEnabled:boolean; backgroundReasoningEnabled:boolean; }
+export interface AssistantContextSources { planner:boolean;productivity:boolean;wellness:boolean;finance:boolean;learning:boolean; }
+export interface AssistantPreferences { localModelUrl: string; localModelName: string; memoryEnabled: boolean; taskPredictionEnabled:boolean; backgroundReasoningEnabled:boolean;contextSources:AssistantContextSources; }
+export interface AssistantReasoningDecision {id:string;trigger:'event'|'scheduler'|'manual';outcome:'no_evidence'|'no_action'|'recommendation'|'deduped'|'stale'|'failed';modelName:string;evidenceCount:number;activityId:string|null;errorCode:string|null;createdAt:Date;}
+export interface AssistantUserDataExport { schemaVersion:1;exportedAt:string;preferences:{localModelName:string;memoryEnabled:boolean;taskPredictionEnabled:boolean;backgroundReasoningEnabled:boolean;contextSources:AssistantContextSources};conversations:AssistantConversation[];memories:AssistantMemory[];reasoningDecisions:AssistantReasoningDecision[]; }
 export interface AssistantMemory { id:string;label:string;content:string;enabled:boolean;expiresAt:Date|null;updatedAt:Date; }
 export interface LocalModelStatus { available:boolean;models:string[];message:string; }
 export interface AssistantTaskProposal { id:string;conversationId:string;actionType:'task.create';task:{title:string;description:string|null;priority:'low'|'normal'|'high'|'critical';dueAt:string|null};status:'pending'|'executed'|'rejected'|'expired';createdAt:Date;expiresAt:Date;resultEntityId:string|null; }
@@ -45,6 +48,7 @@ export type AssistantTaskModelTraining = {status:'ready';modelVersion:number;sam
 export interface AssistantApi {
   status(): Promise<AssistantStatus>;
   activities(limit?: number, includeDismissed?: boolean): Promise<AssistantActivity[]>;
+  reasoningHistory(limit?:number):Promise<AssistantReasoningDecision[]>;
   setMonitoringEnabled(enabled: boolean): Promise<AssistantStatus>;
   markRead(id: string): Promise<void>;
   dismiss(id: string): Promise<void>;
@@ -53,6 +57,7 @@ export interface AssistantApi {
   conversation(id:string): Promise<AssistantConversation|null>;
   newConversation(): Promise<AssistantConversation>;
   deleteConversation(id:string): Promise<boolean>;
+  exportUserData():Promise<{saved:boolean;fileName?:string}>;
   sendMessage(conversationId:string|null,message:string): Promise<AssistantConversation>;
   preferences(): Promise<AssistantPreferences>;
   setPreferences(input:AssistantPreferences): Promise<AssistantPreferences>;

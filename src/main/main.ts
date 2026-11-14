@@ -19,10 +19,11 @@ import { runWellnessReminderCycle } from './modules/wellness/wellness-service';
 import { runFinanceReminderCycle } from './modules/finance/finance-service';
 import { runLearningReminderCycle } from './modules/learning/learning-service';
 import { runAssistantMonitorCycle, startAssistantEngine, stopAssistantEngine, subscribeAssistantUpdates } from './core/assistant-engine';
-import { runAssistantBackgroundReasoning, stopAssistantBackgroundReasoning } from './core/assistant-conversation-service';
+import { runAssistantBackgroundReasoning, startAssistantBackgroundReasoningTriggers, stopAssistantBackgroundReasoning } from './core/assistant-conversation-service';
 import { createTray, destroyTray } from './tray-manager';
 
 let isQuitting = false;
+let stopBackgroundReasoningTriggers:(()=>void)|null=null;
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -104,6 +105,8 @@ app.whenReady().then(async () => {
 
   await startAssistantEngine(databaseReady);
 
+  if(databaseReady)stopBackgroundReasoningTriggers=startAssistantBackgroundReasoningTriggers();
+
   if (databaseReady) startScheduler(async () => {
     try {
       await runFinanceReminderCycle();
@@ -141,6 +144,8 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   isQuitting = true;
   stopScheduler();
+  stopBackgroundReasoningTriggers?.();
+  stopBackgroundReasoningTriggers=null;
   stopAssistantBackgroundReasoning();
   void stopAssistantEngine();
   destroyTray();

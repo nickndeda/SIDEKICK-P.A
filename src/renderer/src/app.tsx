@@ -5,6 +5,7 @@ import WellnessPage from './pages/WellnessPage';
 import FinancePage from './pages/FinancePage';
 import LearningPage from './pages/LearningPage';
 import AssistantPage from './pages/AssistantPage';
+import SettingsPage from './pages/SettingsPage';
 import { useEffect, useState } from 'react';
 
 import Sidebar from './layout/Sidebar';
@@ -14,16 +15,54 @@ import type { AssistantStatus } from '../../shared/types/assistant';
 
 function App() {
   const [activeSection, setActiveSection] = useState('overview');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return window.localStorage.getItem('sidekick.sidebar.collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [focusMode, setFocusMode] = useState(false);
-  const [theme, setTheme] = useState<ThemeMode>('system');
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    try {
+      const savedTheme = window.localStorage.getItem('sidekick.theme');
+      return savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system'
+        ? savedTheme
+        : 'system';
+    } catch {
+      return 'system';
+    }
+  });
+  const [clock, setClock] = useState(() => new Date());
 
   const [assistantStatus, setAssistantStatus] = useState<AssistantStatus | null>(null);
   const notificationCount = assistantStatus?.unreadCount ?? 0;
 
   useEffect(() => {
+    if (!window.sidekick?.assistant) return;
     void window.sidekick.assistant.status().then(setAssistantStatus).catch(() => undefined);
     return window.sidekick.assistant.onUpdate(update => setAssistantStatus(update.status));
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('sidekick.sidebar.collapsed', String(sidebarCollapsed));
+    } catch {
+      // Keep the in-memory preference when local storage is unavailable.
+    }
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('sidekick.theme', theme);
+    } catch {
+      // Keep the in-memory preference when local storage is unavailable.
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const activePage = navigationItems.find(
@@ -52,6 +91,17 @@ function App() {
       };
     }
   }, [theme]);
+
+  if (!window.sidekick?.assistant) {
+    return (
+      <main className="runtime-unavailable">
+        <div>
+          <h1>Sidekick needs its desktop runtime</h1>
+          <p>This page is open without the Electron preload bridge. Start Sidekick with <code>npm run dev</code> and use the desktop window.</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <div className="dashboard-shell">
@@ -82,6 +132,8 @@ function App() {
             <ProductivityPage />
           ) : activeSection === 'assistant' ? (
             <AssistantPage />
+          ) : activeSection === 'chat' ? (
+            <AssistantPage chatOnly />
           ) : activeSection === 'notifications' ? (
             <AssistantPage />
           ) : activeSection === 'learning' ? (
@@ -94,36 +146,16 @@ function App() {
             <OverviewPage onNavigate={setActiveSection} />
           ) : activeSection === 'planner' ? (
             <PlannerPage />
+          ) : activeSection === 'settings' ? (
+            <SettingsPage theme={theme} onThemeChange={setTheme} onNavigate={setActiveSection} />
           ) : (
-            <section className="section-placeholder">
-              <div className="section-placeholder-content">
-                <div className="section-placeholder-icon">
-                  {activePage.label.charAt(0)}
-                </div>
-
-                <h2>{activePage.label}</h2>
-
-                <p>{activePage.description}</p>
-
-                <span>
-                  This section is part of the application foundation.
-                  Its functionality will be implemented in a later stage.
-                </span>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveSection('overview')}
-                >
-                  Return to Overview
-                </button>
-              </div>
-            </section>
+            <OverviewPage onNavigate={setActiveSection} />
           )}
         </div>
 
         <footer className="dashboard-footer">
-          <span>Sidekick P.A. · Application foundation</span>
-          <span>Local-first architecture</span>
+          <span>Sidekick P.A. · Personal workspace</span>
+          <span>Local-first by design</span>
         </footer>
       </main>
     </div>

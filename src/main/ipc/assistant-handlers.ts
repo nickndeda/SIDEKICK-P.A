@@ -1,4 +1,6 @@
-import { BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { writeFile } from 'node:fs/promises';
+import * as path from 'node:path';
 import { dismissAssistantActivity, getAssistantActivities, getAssistantStatus, markAssistantActivityRead, setAssistantMonitoring } from '../core/assistant-engine';
 import * as chat from '../core/assistant-conversation-service';
 
@@ -13,7 +15,7 @@ function recordId(value: unknown): string {
 }
 
 export function registerAssistantIpcHandlers(): void {
-  const channels = ['assistant:status','assistant:activities','assistant:monitoring:set','assistant:activity:read','assistant:activity:dismiss','assistant:conversations','assistant:conversation:get','assistant:conversation:new','assistant:conversation:delete','assistant:chat:send','assistant:preferences','assistant:preferences:set','assistant:model:check','assistant:memories','assistant:memory:save','assistant:memory:delete','assistant:proposals','assistant:proposal:decide','assistant:feedback','assistant:task-risk','assistant:task-model:train','assistant:task-model:clear'];
+  const channels = ['assistant:status','assistant:activities','assistant:reasoning-history','assistant:monitoring:set','assistant:activity:read','assistant:activity:dismiss','assistant:conversations','assistant:conversation:get','assistant:conversation:new','assistant:conversation:delete','assistant:data:export','assistant:chat:send','assistant:preferences','assistant:preferences:set','assistant:model:check','assistant:memories','assistant:memory:save','assistant:memory:delete','assistant:proposals','assistant:proposal:decide','assistant:feedback','assistant:task-risk','assistant:task-model:train','assistant:task-model:clear'];
   for (const channel of channels) ipcMain.removeHandler(channel);
   ipcMain.handle('assistant:status', event => { trusted(event); return getAssistantStatus(); });
   ipcMain.handle('assistant:activities', (event, limit, includeDismissed) => {
@@ -22,6 +24,7 @@ export function registerAssistantIpcHandlers(): void {
     if (includeDismissed !== undefined && typeof includeDismissed !== 'boolean') throw new Error('Invalid dismissed activity filter.');
     return getAssistantActivities(limit, includeDismissed);
   });
+  ipcMain.handle('assistant:reasoning-history',(event,limit)=>{trusted(event);if(limit!==undefined&&(typeof limit!=='number'||!Number.isInteger(limit)||limit<1||limit>100))throw new Error('Reasoning history limit must be from 1 to 100.');return chat.getAssistantReasoningHistory(limit??20);});
   ipcMain.handle('assistant:monitoring:set', (event, enabled) => {
     trusted(event);
     if (typeof enabled !== 'boolean') throw new Error('Monitoring state must be enabled or disabled.');
@@ -33,6 +36,17 @@ export function registerAssistantIpcHandlers(): void {
   ipcMain.handle('assistant:conversation:get', (event,id) => { trusted(event); return chat.getAssistantConversation(recordId(id)); });
   ipcMain.handle('assistant:conversation:new', event => { trusted(event); return chat.newAssistantConversation(); });
   ipcMain.handle('assistant:conversation:delete', (event,id) => { trusted(event); return chat.removeAssistantConversation(recordId(id)); });
+  ipcMain.handle('assistant:data:export', async event => {
+    trusted(event);
+    const owner=BrowserWindow.fromWebContents(event.sender);
+    if(!owner)throw new Error('Export needs an active Sidekick window.');
+    const date=new Date().toISOString().slice(0,10);
+    const {canceled,filePath}=await dialog.showSaveDialog(owner,{title:'Export Sidekick assistant data',defaultPath:path.join(app.getPath('downloads'),`sidekick-assistant-export-${date}.json`),filters:[{name:'JSON files',extensions:['json']}]});
+    if(canceled||!filePath)return {saved:false};
+    const data=await chat.exportAssistantUserData();
+    await writeFile(filePath,JSON.stringify(data,null,2),{encoding:'utf8',flag:'w'});
+    return {saved:true,fileName:path.basename(filePath)};
+  });
   ipcMain.handle('assistant:chat:send', (event,id,message) => { trusted(event); if (id !== null && typeof id !== 'string') throw new Error('Invalid conversation ID.'); if (typeof message !== 'string') throw new Error('Message must be text.'); return chat.sendAssistantMessage(id,message); });
   ipcMain.handle('assistant:preferences', event => { trusted(event); return chat.getAssistantPreferences(); });
   ipcMain.handle('assistant:preferences:set', (event,input) => { trusted(event); if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Invalid assistant preferences.'); return chat.updateAssistantPreferences(input); });

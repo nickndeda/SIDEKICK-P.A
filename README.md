@@ -467,12 +467,15 @@ Currently established:
 - Optional structured local-model chat and low-frequency background reasoning.
 - User-approved Planner task proposal execution and response feedback.
 - Opt-in personal task-delay model with chronological evaluation and versioning.
+- Query-relevant context with per-module privacy toggles and relevant-memory retrieval.
+- Assistant conversation/memory export through a native save dialog.
+- Real Ollama multi-turn chat, approval-gated task creation, and event-triggered recommendation verified on the target-class development PC.
 
 Not yet implemented:
 
 - SQLite production migration and database backup/restore.
-- Installed local model runtime and live inference verification.
-- Full data export/retention and per-domain model context controls.
+- Full module-wide data export/retention and backup/restore. Assistant conversations and memories can be exported.
+- Native notification delivery from real-model recommendations and long-running background resource benchmarks.
 - Broader permissioned action catalog and unattended outcome reporting.
 - Voice interaction, external connectors, and floating assistant orb.
 - Production installer and deployment.

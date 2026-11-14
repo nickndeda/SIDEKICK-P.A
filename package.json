@@ -4,10 +4,11 @@
   "description": "an AI assistant to help students manage their day to day school life",
   "main": "dist/main/main.js",
   "scripts": {
-    "dev": "concurrently -k -n TYPESCRIPT,VITE,ELECTRON -c blue,green,magenta \"tsc --watch --preserveWatchOutput\" \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:3000 dist/main/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:3000 electron .\"",
+    "dev": "concurrently -k -n TYPESCRIPT,VITE,ELECTRON -c blue,green,magenta \"tsc --watch --preserveWatchOutput\" \"vite --host 0.0.0.0\" \"wait-on http://127.0.0.1:3000 dist/main/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:3000 electron .\"",
     "build": "tsc -p tsconfig.json && tsc -p src/renderer/tsconfig.json && vite build",
     "test": "npm run build && node --test tests/*.test.cjs",
     "test:integration": "node --test --test-concurrency=1 tests/*.integration.cjs",
+    "test:ollama": "npm run build && node tests/ollama-smoke.cjs",
     "start": "electron ."
   },
   "repository": {

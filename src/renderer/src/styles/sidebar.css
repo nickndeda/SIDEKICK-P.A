@@ -40,6 +40,17 @@
   font-size: 17px;
 }
 
+.sidebar__logo-button {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.sidebar__logo-button:hover {
+  filter: brightness(1.08);
+}
+
 .sidebar__brand-text {
   display: flex;
   flex-direction: column;

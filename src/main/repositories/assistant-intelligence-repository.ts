@@ -4,7 +4,7 @@ import { getDatabasePool } from '../database/connection';
 import { createTaskForAssistantProposal, getTaskById, type CreateTaskInput } from './task-repository';
 import { publishAssistantEvent } from '../core/assistant-monitor';
 import { insertActivity } from './assistant-repository';
-import type { AssistantTaskProposal } from '../../shared/types/assistant';
+import type { AssistantReasoningDecision, AssistantTaskProposal } from '../../shared/types/assistant';
 import type { TaskDelayModel } from '../core/task-delay-model';
 
 type Row = RowDataPacket & Record<string, unknown>;
@@ -104,7 +104,20 @@ export async function claimBackgroundReasoningAttempt(pool:Pool=getDatabasePool(
   return Number((result as {affectedRows?:number}).affectedRows??0)>0;
 }
 
-export async function createReasoningActivity(input:{dedupeKey:string;title:string;description:string;payload:Record<string,unknown>}):Promise<void>{
+export async function createReasoningActivity(input:{dedupeKey:string;title:string;description:string;payload:Record<string,unknown>}):Promise<{activityId:string;inserted:boolean}>{
   const saved=await insertActivity({dedupeKey:input.dedupeKey,eventType:'assistant.ai_reasoning',severity:'normal',title:input.title,description:input.description,payload:input.payload});
   if(saved.inserted)publishAssistantEvent('assistant.activity.created',{activityId:saved.activity.id,eventType:saved.activity.eventType});
+  return {activityId:saved.activity.id,inserted:saved.inserted};
 }
+
+export async function recordReasoningDecision(input:{id:string;trigger:AssistantReasoningDecision['trigger'];outcome:AssistantReasoningDecision['outcome'];modelName:string;evidenceIds?:string[];activityId?:string|null;errorCode?:string|null}):Promise<void>{
+  await getDatabasePool().execute('INSERT INTO assistant_reasoning_decisions(id,trigger_source,outcome,model_name,evidence_ids_json,activity_id,error_code) VALUES(?,?,?,?,?,?,?)',[input.id,input.trigger,input.outcome,input.modelName,JSON.stringify(input.evidenceIds??[]),input.activityId??null,input.errorCode??null]);
+}
+
+export async function listReasoningDecisions(limit=20):Promise<AssistantReasoningDecision[]>{
+  const safeLimit=Math.max(1,Math.min(100,Math.floor(limit)));
+  const [rows]=await getDatabasePool().execute<Row[]>('SELECT id,trigger_source,outcome,model_name,evidence_ids_json,activity_id,error_code,created_at FROM assistant_reasoning_decisions ORDER BY created_at DESC LIMIT ?',[safeLimit]);
+  return rows.map(row=>{let evidence:unknown=row.evidence_ids_json;if(typeof evidence==='string'){try{evidence=JSON.parse(evidence) as unknown}catch{evidence=[]}}return {id:String(row.id),trigger:row.trigger_source as AssistantReasoningDecision['trigger'],outcome:row.outcome as AssistantReasoningDecision['outcome'],modelName:String(row.model_name),evidenceCount:Array.isArray(evidence)?evidence.length:0,activityId:row.activity_id==null?null:String(row.activity_id),errorCode:row.error_code==null?null:String(row.error_code),createdAt:row.created_at as Date}});
+}
+
+export async function deleteReasoningDecision(id:string):Promise<void>{await getDatabasePool().execute('DELETE FROM assistant_reasoning_decisions WHERE id=?',[id]);}

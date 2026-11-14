@@ -23,6 +23,7 @@ import type { AssistantApi } from '../shared/types/assistant';
 const assistantAPI: AssistantApi = {
   status: () => ipcRenderer.invoke('assistant:status'),
   activities: (limit, includeDismissed) => ipcRenderer.invoke('assistant:activities', limit, includeDismissed),
+  reasoningHistory: limit => ipcRenderer.invoke('assistant:reasoning-history',limit),
   setMonitoringEnabled: enabled => ipcRenderer.invoke('assistant:monitoring:set', enabled),
   markRead: id => ipcRenderer.invoke('assistant:activity:read', id),
   dismiss: id => ipcRenderer.invoke('assistant:activity:dismiss', id),
@@ -35,6 +36,7 @@ const assistantAPI: AssistantApi = {
   conversation: id => ipcRenderer.invoke('assistant:conversation:get',id),
   newConversation: () => ipcRenderer.invoke('assistant:conversation:new'),
   deleteConversation: id => ipcRenderer.invoke('assistant:conversation:delete',id),
+  exportUserData: () => ipcRenderer.invoke('assistant:data:export'),
   sendMessage: (id,message) => ipcRenderer.invoke('assistant:chat:send',id,message),
   preferences: () => ipcRenderer.invoke('assistant:preferences'),
   setPreferences: input => ipcRenderer.invoke('assistant:preferences:set',input),

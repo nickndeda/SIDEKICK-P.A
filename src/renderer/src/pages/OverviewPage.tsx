@@ -81,6 +81,7 @@ interface OverviewPageProps {
 }
 
 function OverviewPage({ onNavigate }: OverviewPageProps) {
+  const [clock, setClock] = useState(() => new Date());
   const [data, setData] = useState<OverviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -123,6 +124,11 @@ function OverviewPage({ onNavigate }: OverviewPageProps) {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(new Date()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const taskGroups = useMemo(() => {
     const now = new Date();
     const todayKey = localDateKey(now);
@@ -153,14 +159,19 @@ function OverviewPage({ onNavigate }: OverviewPageProps) {
 
   const financeMoney = (amountMinor: number, currencyCode: string) =>
     new Intl.NumberFormat('en-KE', { style: 'currency', currency: currencyCode }).format(amountMinor / 100);
+  const greeting = clock.getHours() < 12
+    ? 'Good morning'
+    : clock.getHours() < 18
+      ? 'Good afternoon'
+      : 'Good evening';
 
   return (
     <section className="overview-page">
       <div className="overview-welcome">
         <div>
           <span className="overview-eyebrow">YOUR PERSONAL WORKSPACE</span>
-          <h2>Good morning.</h2>
-          <p>Planner tasks and focus activity, together in one place.</p>
+          <h2>{greeting}.</h2>
+          <p>Here’s what’s happening across your day.</p>
         </div>
         <div className="overview-welcome-actions">
           <div className="overview-date">
@@ -169,7 +180,7 @@ function OverviewPage({ onNavigate }: OverviewPageProps) {
               day: 'numeric',
               month: 'long',
               year: 'numeric'
-            }).format(new Date())}
+            }).format(clock)}
           </div>
           <button
             type="button"

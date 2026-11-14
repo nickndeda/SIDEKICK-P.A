@@ -41,6 +41,7 @@ export interface AssistantContext {
   finance: FinanceContext | null;
   learning: LearningContext | null;
   degradedModules: string[];
+  omittedModules: string[];
 }
 
 export interface AssistantFinding {
